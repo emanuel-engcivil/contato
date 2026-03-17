@@ -423,7 +423,6 @@ tbody td.bold{color:var(--text);font-weight:500;}
         <div class="f-group"><label>Nome <span class="req">*</span></label><input type="text" id="fl-nome"></div>
         <div class="f-group"><label>WhatsApp <span class="req">*</span></label><input type="tel" id="fl-whatsapp" placeholder="(88) 99999-9999"></div>
       </div>
-      <div class="f-group"><label>E-mail <span style="font-size:10px;color:var(--muted)">(para e-mails automáticos)</span></label><input type="email" id="fl-email" placeholder="cliente@email.com"></div>
       <div class="f-row">
         <div class="f-group"><label>Você é <span class="req">*</span></label>
           <select id="fl-tipo"><option value="">Selecione...</option><option value="arquiteto">Arquiteto(a)</option><option value="construtora">Construtora/Incorporadora</option><option value="proprietario">Proprietário/Pessoa Física</option><option value="outro">Outro</option></select></div>
@@ -462,7 +461,6 @@ tbody td.bold{color:var(--text);font-weight:500;}
         <div class="f-group"><label>Nome <span class="req">*</span></label><input type="text" id="fc-nome" placeholder="Nome ou empresa"></div>
         <div class="f-group"><label>WhatsApp</label><input type="tel" id="fc-whatsapp" placeholder="(88) 99999-9999"></div>
       </div>
-      <div class="f-group"><label>E-mail <span style="font-size:10px;color:var(--muted)">(para e-mails automáticos)</span></label><input type="email" id="fc-email" placeholder="cliente@email.com"></div>
       <div class="f-row">
         <div class="f-group"><label>Tipo</label>
           <select id="fc-tipo"><option value="">Selecione...</option><option value="arquiteto">Arquiteto(a)</option><option value="construtora">Construtora/Incorporadora</option><option value="proprietario">Proprietário/Pessoa Física</option><option value="outro">Outro</option></select></div>
@@ -860,7 +858,12 @@ function renderDashboard(){
   const recEntregue=todosProjetos.filter(p=>p.status==='entregue').reduce((s,p)=>s+Number(p.valor||0),0);
   const recRecebido=todosProjetos.reduce((s,p)=>s+(p.parcelas||[]).filter(x=>x.pago).reduce((ss,x)=>ss+Number(x.valor||0),0),0);
   const recPendente=todosProjetos.reduce((s,p)=>s+(p.parcelas||[]).filter(x=>!x.pago).reduce((ss,x)=>ss+Number(x.valor||0),0),0);
-  const ticket=projetos.length>0?(projetos.reduce((s,p)=>s+Number(p.valor||0),0)/projetos.length).toLocaleString('pt-BR',{minimumFractionDigits:0}):'-';
+  // Ticket médio: só projetos criados no período (usa criadoEm do Firestore)
+  const projetosPeriodo = todosProjetos.filter(p=>{
+    const d = new Date(p.criadoEm||p.atualizadoEm||'2000-01-01');
+    return d>=cutoffDe && d<=cutoffAte;
+  });
+  const ticket=projetosPeriodo.length>0?(projetosPeriodo.reduce((s,p)=>s+Number(p.valor||0),0)/projetosPeriodo.length).toLocaleString('pt-BR',{minimumFractionDigits:0}):'-';
   const sColors={novo:'#4a9eff',contato:'#f5a623',negociacao:'#E85D20',proposta:'#8a57eb',fechado:'#2dd4a0',perdido:'#e05252'};
   const sCounts={};Object.keys(L.status).forEach(k=>sCounts[k]=leads.filter(l=>l.status===k).length);
   const maxS=Math.max(...Object.values(sCounts),1);
@@ -882,7 +885,7 @@ function renderDashboard(){
       </div>
       <div class="grid-2">
         <div class="card card-accent"><div class="card-label">Taxa de Conversão</div><div class="card-value">${conv}<span style="font-size:20px;color:var(--muted)">%</span></div></div>
-        <div class="card card-success"><div class="card-label">Ticket Médio</div><div class="card-value" style="font-size:26px">R$ ${ticket}</div><div class="card-sub">${projetos.length} projeto(s)</div></div>
+        <div class="card card-success"><div class="card-label">Ticket Médio</div><div class="card-value" style="font-size:26px">R$ ${ticket}</div><div class="card-sub">${projetosPeriodo.length} projeto(s) no período</div></div>
       </div>
       <div class="grid-2" style="margin-bottom:24px">
         <div class="card" style="border-top:2px solid var(--info)"><div class="card-label">Tempo Médio de Fechamento</div><div class="card-value">${tempoMedio!==null?tempoMedio:'—'}<span style="font-size:18px;color:var(--muted)">${tempoMedio!==null?' dias':''}</span></div><div class="card-sub">${leadsComFechamento.length} lead(s) fechados com data</div></div>
@@ -951,7 +954,7 @@ window.lf=lf;
 window.renderLeads=renderLeads;
 
 window.openNewLead=()=>{
-  ['nome','whatsapp','email','tipo','servico','tipologia','area','cidade','prazo','tem_arq','como_conheceu','descricao'].forEach(f=>{const el=document.getElementById('fl-'+f);if(el)el.value='';});
+  ['nome','whatsapp','tipo','servico','tipologia','area','cidade','prazo','tem_arq','como_conheceu','descricao'].forEach(f=>{const el=document.getElementById('fl-'+f);if(el)el.value='';}); 
   delete document.getElementById('fl-nome').dataset.editId;
   document.getElementById('modalLeadTitle').textContent='NOVO LEAD';
   openModal('modalLead');
@@ -969,9 +972,7 @@ document.getElementById('saveLeadBtn').onclick=async()=>{
   if(!nome||!whatsapp||!tipo||!servico||!tipologia||!area||!cidade||!prazo){alert('Preencha todos os campos obrigatórios (*)');return;}
   const btn=document.getElementById('saveLeadBtn'); btn.disabled=true; btn.textContent='Salvando...';
   const editId=document.getElementById('fl-nome').dataset.editId;
-  const dados={nome,whatsapp,
-    email:document.getElementById('fl-email').value.trim(),
-    tipo,servico,tipologia,area,cidade,prazo,
+  const dados={nome,whatsapp,tipo,servico,tipologia,area,cidade,prazo,
     tem_arq:document.getElementById('fl-tem_arq').value,
     como_conheceu:document.getElementById('fl-como_conheceu').value,
     descricao:document.getElementById('fl-descricao').value.trim()};
@@ -980,14 +981,7 @@ document.getElementById('saveLeadBtn').onclick=async()=>{
     delete document.getElementById('fl-nome').dataset.editId;
   } else {
     await fsAdd('leads',{...dados,origem:'manual',status:'novo',lido:false,data:new Date().toISOString(),historico:[],anotacoes:''});
-    // E-mail de confirmação para o cliente
-    if(dados.email){
-      enviarEmail(EJS.templates.novoLead,{
-        to_email:dados.email, to_name:dados.nome,
-        from_name:loadTema().nomeUsuario||'Emanuel Freire',
-        servico:lbl('servico',dados.servico)
-      });
-    }
+
   }
   btn.disabled=false; btn.textContent='SALVAR LEAD';
   document.getElementById('modalLeadTitle').textContent='NOVO LEAD';
@@ -1051,26 +1045,9 @@ window.openLeadPanel=async(id)=>{
 };
 
 window.updateLeadStatus=async(id,status)=>{
-  const lead=cache.leads.find(l=>l.id===id);
   const dados={status};
   if(status==='fechado') dados.dataFechamento=new Date().toISOString();
   await fsUpdate('leads',id,dados);
-  // E-mails automáticos por status
-  if(lead?.email){
-    const nome=lead.nomeCliente||lead.nome||'';
-    const from=loadTema().nomeUsuario||'Emanuel Freire';
-    const templateMap={
-      proposta:EJS.templates.statusProposta,
-      fechado:EJS.templates.statusFechado,
-      perdido:EJS.templates.statusPerdido
-    };
-    if(templateMap[status]){
-      enviarEmail(templateMap[status],{
-        to_email:lead.email, to_name:nome,
-        from_name:from, servico:lbl('servico',lead.servico)
-      });
-    }
-  }
 };
 window.addHistoricoLead=async(id)=>{
   const inp=document.getElementById('novaNotaInput'); const t=inp.value.trim(); if(!t) return;
@@ -1133,7 +1110,6 @@ window.editarLead=(id)=>{
   document.getElementById('fl-tem_arq').value=lead.tem_arq||'';
   document.getElementById('fl-como_conheceu').value=lead.como_conheceu||'';
   document.getElementById('fl-descricao').value=lead.descricao||'';
-  document.getElementById('fl-email').value=lead.email||'';
   document.getElementById('fl-nome').dataset.editId=id;
   document.getElementById('modalLeadTitle').textContent='EDITAR LEAD';
   openModal('modalLead');
@@ -1160,7 +1136,7 @@ function renderClientes(){
 }
 
 window.openNovoCliente=()=>{
-  ['nome','whatsapp','email','tipo','cidade','obs'].forEach(f=>{const el=document.getElementById('fc-'+f);if(el)el.value='';});
+  ['nome','whatsapp','tipo','cidade','obs'].forEach(f=>{const el=document.getElementById('fc-'+f);if(el)el.value='';}); 
   delete document.getElementById('fc-nome').dataset.editId;
   document.getElementById('modalClienteTitle').textContent='NOVO CLIENTE';
   document.getElementById('deleteClienteBtn').style.display='none';
@@ -1175,7 +1151,6 @@ window.openEditCliente=(id)=>{
   document.getElementById('fc-tipo').value=c.tipo||'';
   document.getElementById('fc-cidade').value=c.cidade||'';
   document.getElementById('fc-obs').value=c.obs||'';
-  document.getElementById('fc-email').value=c.email||'';
   document.getElementById('modalClienteTitle').textContent='EDITAR CLIENTE';
   document.getElementById('deleteClienteBtn').style.display='';
   document.getElementById('confirmDeleteBox').style.display='none';
@@ -1195,9 +1170,7 @@ document.getElementById('confirmDeleteYes').onclick=async()=>{
 
 document.getElementById('saveClienteBtn').onclick=async()=>{
   const nome=document.getElementById('fc-nome').value.trim(); if(!nome){alert('Informe o nome.');return;}
-  const dados={nome,whatsapp:document.getElementById('fc-whatsapp').value.trim(),
-    email:document.getElementById('fc-email').value.trim(),
-    tipo:document.getElementById('fc-tipo').value,cidade:document.getElementById('fc-cidade').value.trim(),obs:document.getElementById('fc-obs').value.trim()};
+  const dados={nome,whatsapp:document.getElementById('fc-whatsapp').value.trim(),tipo:document.getElementById('fc-tipo').value,cidade:document.getElementById('fc-cidade').value.trim(),obs:document.getElementById('fc-obs').value.trim()};
   const btn=document.getElementById('saveClienteBtn'); btn.disabled=true; btn.textContent='Salvando...';
   const editId=document.getElementById('fc-nome').dataset.editId;
   if(editId){ await fsUpdate('clientes',editId,dados); }
@@ -1301,19 +1274,18 @@ function renderProjetos(){
           ${p.prazo?`<span style="font-size:12px;color:var(--muted2)">📅 <strong style="color:var(--text)">${p.prazo}</strong></span>`:''}
         </div>
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><div class="progress-track" style="flex:1"><div class="progress-fill" style="width:${p.progresso||0}%;background:${cor}"></div></div><span style="font-size:11px;color:var(--muted2);font-family:'DM Mono',monospace">${p.progresso||0}%</span></div>
-        ${(p.parcelas&&p.parcelas.length>0)?`<div style="margin-bottom:10px">
-          ${p.parcelas.map(parc=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">
-            <span style="font-size:12px;color:var(--muted2)">${parc.descricao||'Parcela'}</span>
-            <div style="display:flex;align-items:center;gap:8px">
+        ${(p.parcelas&&p.parcelas.length>0)?`<div style="margin-bottom:10px;background:var(--bg);border:1px solid var(--border);padding:10px 12px">
+          <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">Parcelas</div>
+          ${p.parcelas.map(parc=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:12px;color:var(--muted2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${parc.descricao||'Parcela'}</span>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:8px">
               <span style="font-size:12px;font-weight:600;color:var(--text)">R$ ${Number(parc.valor||0).toLocaleString('pt-BR')}</span>
-              <span style="font-size:10px;font-family:'DM Mono',monospace;padding:2px 6px;border-radius:2px;background:${parc.pago?'rgba(45,212,160,.15)':'rgba(245,166,35,.15)'};color:${parc.pago?'var(--success)':'var(--warning)'}">
-                ${parc.pago?'✓ Pago':'Pendente'}
-              </span>
+              <span style="font-size:10px;font-family:'DM Mono',monospace;padding:2px 6px;background:${parc.pago?'rgba(45,212,160,.15)':'rgba(245,166,35,.15)'};color:${parc.pago?'var(--success)':'var(--warning)'}">${parc.pago?'✓ Pago':'Pendente'}</span>
             </div>
           </div>`).join('')}
-          <div style="display:flex;justify-content:space-between;padding-top:6px">
+          <div style="display:flex;justify-content:space-between;padding-top:8px;margin-top:2px">
             <span style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">RECEBIDO</span>
-            <span style="font-size:12px;font-weight:600;color:var(--success)">R$ ${(p.parcelas.filter(x=>x.pago).reduce((s,x)=>s+Number(x.valor||0),0)).toLocaleString('pt-BR')}</span>
+            <span style="font-size:12px;font-weight:700;color:var(--success)">R$ ${(p.parcelas.filter(x=>x.pago).reduce((s,x)=>s+Number(x.valor||0),0)).toLocaleString('pt-BR')}</span>
           </div>
         </div>`:''}
         <div style="display:flex;gap:8px">
@@ -1370,18 +1342,7 @@ document.getElementById('saveProjetoBtn').onclick=async()=>{
   if(editId){
     const projetoAntigo=cache.projetos.find(p=>p.id===editId);
     await fsUpdate('projetos',editId,dados);
-    // E-mail automático de progresso se mudou
-    if(projetoAntigo&&projetoAntigo.progresso!==novoProgresso){
-      const cli=cache.clientes.find(c=>c.id===clienteId);
-      if(cli?.email){
-        enviarEmail(EJS.templates.progresso,{
-          to_email:cli.email, to_name:cli.nome,
-          projeto:descricao, progresso:novoProgresso+'%',
-          prazo:dados.prazo||'a definir',
-          from_name:loadTema().nomeUsuario||'Emanuel Freire'
-        });
-      }
-    }
+
   } else { await fsAdd('projetos',dados); }
   btn.disabled=false; btn.textContent='SALVAR';
   closeModal('modalProjeto');
@@ -1403,15 +1364,20 @@ window.adicionarParcela=()=>{
 function renderParcelasForm(){
   const c=document.getElementById('parcelasContainer'); if(!c) return;
   c.innerHTML=parcelasTemp.map((p,i)=>`
-    <div style="display:grid;grid-template-columns:1fr auto auto auto;gap:8px;align-items:center;margin-bottom:8px">
-      <input class="nota-input" style="width:100%" placeholder="Ex: Entrada 30%" value="${p.descricao}"
-        oninput="parcelasTemp[${i}].descricao=this.value">
-      <input class="nota-input" style="width:90px" type="number" placeholder="R$" value="${p.valor||''}"
-        oninput="parcelasTemp[${i}].valor=Number(this.value)">
-      <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted2);cursor:pointer;white-space:nowrap">
-        <input type="checkbox" ${p.pago?'checked':''} onchange="parcelasTemp[${i}].pago=this.checked" style="accent-color:var(--success)"> Pago
-      </label>
-      <button class="btn btn-danger btn-sm" onclick="parcelasTemp.splice(${i},1);renderParcelasForm()">✕</button>
+    <div style="background:var(--bg);border:1px solid var(--border2);padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <input class="nota-input" style="flex:1;min-width:0" placeholder="Ex: Entrada 30%" value="${p.descricao}"
+          oninput="parcelasTemp[${i}].descricao=this.value">
+        <button class="btn btn-danger btn-sm" style="flex-shrink:0" onclick="parcelasTemp.splice(${i},1);renderParcelasForm()">✕</button>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input class="nota-input" style="flex:1" type="number" placeholder="Valor R$" value="${p.valor||''}"
+          oninput="parcelasTemp[${i}].valor=Number(this.value)">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted2);cursor:pointer;white-space:nowrap;padding:8px 12px;border:1px solid var(--border2);background:${p.pago?'rgba(45,212,160,.1)':'none'}">
+          <input type="checkbox" ${p.pago?'checked':''} onchange="parcelasTemp[${i}].pago=this.checked;renderParcelasForm()" style="accent-color:var(--success);width:14px;height:14px">
+          <span style="color:${p.pago?'var(--success)':'var(--muted2)'}">Pago</span>
+        </label>
+      </div>
     </div>`).join('');
 }
 function loadParcelasForm(parcelas){
@@ -1419,36 +1385,7 @@ function loadParcelasForm(parcelas){
   renderParcelasForm();
 }
 
-// ════════ EMAIL JS ════════
-const EJS_KEY='efcrm_ejs';
-const EJS_DEFAULT={
-  publicKey:'SUA_PUBLIC_KEY',
-  serviceId:'SEU_SERVICE_ID',
-  templates:{
-    novoLead:'SEU_TEMPLATE_NOVO_LEAD',
-    statusProposta:'SEU_TEMPLATE_PROPOSTA',
-    statusFechado:'SEU_TEMPLATE_FECHADO',
-    statusPerdido:'SEU_TEMPLATE_PERDIDO',
-    progresso:'SEU_TEMPLATE_PROGRESSO'
-  }
-};
-const EJS=JSON.parse(localStorage.getItem(EJS_KEY)||'null')||JSON.parse(JSON.stringify(EJS_DEFAULT));
 
-window.salvarEJS=()=>{
-  localStorage.setItem(EJS_KEY, JSON.stringify(EJS));
-};
-
-async function enviarEmail(templateId, params){
-  if(!EJS.publicKey||EJS.publicKey==='SUA_PUBLIC_KEY'||!templateId||templateId.startsWith('SEU_')) return;
-  try{
-    await fetch('https://api.emailjs.com/api/v1.0/email/send',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({service_id:EJS.serviceId,template_id:templateId,user_id:EJS.publicKey,template_params:params})
-    });
-    console.log('E-mail enviado:',templateId);
-  }catch(e){ console.warn('EmailJS erro:',e.message); }
-}
 
 // ════════ AGENDA ════════
 function renderAgenda(){
@@ -1788,30 +1725,6 @@ function renderConfiguracoes(){
       <div class="cfg-row"><span class="cfg-key">PERFIL</span><span class="cfg-val" style="color:var(--accent)">${currentUserData?.role==='admin'?'Administrador':'Usuário'}</span></div>
       <div class="cfg-row"><span class="cfg-key">PROJETO FIREBASE</span><span class="cfg-val">ef-crm-d78da</span></div>
       <div class="cfg-row"><span class="cfg-key">BANCO</span><span class="cfg-val">Firestore (us-east1)</span></div>
-    </div>
-
-    <!-- E-MAILS AUTOMÁTICOS -->
-    <div class="card" style="margin-bottom:16px">
-      <div class="section-title" style="margin-bottom:4px">E-mails Automáticos (EmailJS)</div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:16px">Configure suas chaves do <a href="https://dashboard.emailjs.com" target="_blank" style="color:var(--accent)">EmailJS</a> para ativar os e-mails automáticos.</div>
-      <div class="f-group"><label>Public Key</label><input type="text" id="ejs-publicKey" value="${EJS.publicKey!=='SUA_PUBLIC_KEY'?EJS.publicKey:''}" placeholder="SUA_PUBLIC_KEY" oninput="EJS.publicKey=this.value;salvarEJS()"></div>
-      <div class="f-group"><label>Service ID</label><input type="text" id="ejs-serviceId" value="${EJS.serviceId!=='SEU_SERVICE_ID'?EJS.serviceId:''}" placeholder="SEU_SERVICE_ID" oninput="EJS.serviceId=this.value;salvarEJS()"></div>
-      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin:12px 0 8px">Template IDs</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div class="f-group" style="margin-bottom:0"><label>Novo Lead</label><input type="text" id="ejs-tpl-novoLead" value="${EJS.templates.novoLead!=='SEU_TEMPLATE_NOVO_LEAD'?EJS.templates.novoLead:''}" placeholder="template_id" oninput="EJS.templates.novoLead=this.value;salvarEJS()"></div>
-        <div class="f-group" style="margin-bottom:0"><label>Proposta Enviada</label><input type="text" id="ejs-tpl-proposta" value="${EJS.templates.statusProposta!=='SEU_TEMPLATE_PROPOSTA'?EJS.templates.statusProposta:''}" placeholder="template_id" oninput="EJS.templates.statusProposta=this.value;salvarEJS()"></div>
-        <div class="f-group" style="margin-bottom:0"><label>Negócio Fechado</label><input type="text" id="ejs-tpl-fechado" value="${EJS.templates.statusFechado!=='SEU_TEMPLATE_FECHADO'?EJS.templates.statusFechado:''}" placeholder="template_id" oninput="EJS.templates.statusFechado=this.value;salvarEJS()"></div>
-        <div class="f-group" style="margin-bottom:0"><label>Lead Perdido</label><input type="text" id="ejs-tpl-perdido" value="${EJS.templates.statusPerdido!=='SEU_TEMPLATE_PERDIDO'?EJS.templates.statusPerdido:''}" placeholder="template_id" oninput="EJS.templates.statusPerdido=this.value;salvarEJS()"></div>
-        <div class="f-group" style="margin-bottom:0"><label>Progresso do Projeto</label><input type="text" id="ejs-tpl-progresso" value="${EJS.templates.progresso!=='SEU_TEMPLATE_PROGRESSO'?EJS.templates.progresso:''}" placeholder="template_id" oninput="EJS.templates.progresso=this.value;salvarEJS()"></div>
-      </div>
-      <div style="margin-top:12px;font-size:11px;color:var(--muted2);line-height:1.7">
-        📧 <strong style="color:var(--text)">Variáveis disponíveis nos templates:</strong><br>
-        <code style="font-family:'DM Mono',monospace;color:var(--accent)">{{to_name}}</code> Nome do cliente &nbsp;
-        <code style="font-family:'DM Mono',monospace;color:var(--accent)">{{from_name}}</code> Seu nome &nbsp;
-        <code style="font-family:'DM Mono',monospace;color:var(--accent)">{{servico}}</code> Serviço &nbsp;
-        <code style="font-family:'DM Mono',monospace;color:var(--accent)">{{progresso}}</code> % progresso &nbsp;
-        <code style="font-family:'DM Mono',monospace;color:var(--accent)">{{prazo}}</code> Prazo entrega
-      </div>
     </div>
 
     <!-- DADOS -->
