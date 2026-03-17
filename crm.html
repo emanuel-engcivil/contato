@@ -243,6 +243,30 @@ tbody td.bold{color:var(--text);font-weight:500;}
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
 .info-box{background:rgba(74,158,255,.08);border:1px solid rgba(74,158,255,.2);padding:12px 14px;font-size:12px;color:var(--muted2);font-family:'DM Mono',monospace;line-height:1.6;margin-bottom:16px;}
 
+/* ── WORKSPACE ── */
+.proj-list-row{background:var(--surface2);border:1px solid var(--border);padding:16px 20px;margin-bottom:8px;display:flex;align-items:center;gap:16px;cursor:pointer;transition:border-color .2s;}
+.proj-list-row:hover{border-color:var(--accent);background:var(--surface);}
+.workspace-col{min-width:260px;max-width:260px;background:var(--surface);border:1px solid var(--border);border-radius:4px;display:flex;flex-direction:column;max-height:calc(100vh - 260px);}
+.workspace-col-header{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.workspace-col-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.workspace-col-title{font-size:12px;font-family:'DM Mono',monospace;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text);flex:1;min-width:0;}
+.workspace-cards{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px;}
+.workspace-cards.drag-over{background:rgba(232,93,32,.06);border:1px dashed var(--accent);}
+.workspace-card{background:var(--surface2);border:1px solid var(--border);padding:10px 12px;cursor:pointer;transition:all .15s;border-radius:2px;}
+.workspace-card:hover{border-color:var(--border2);transform:translateY(-1px);box-shadow:0 3px 8px rgba(0,0,0,.3);}
+.workspace-card.dragging{opacity:.4;transform:rotate(1deg);}
+.workspace-card-title{font-size:13px;font-weight:500;color:var(--text);margin-bottom:4px;line-height:1.3;}
+.workspace-card-desc{font-size:11px;color:var(--muted2);margin-bottom:4px;line-height:1.4;}
+.workspace-card-prazo{font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:4px;}
+.workspace-card-badge{font-size:9px;font-family:'DM Mono',monospace;padding:2px 6px;border-radius:2px;text-transform:uppercase;letter-spacing:.06em;}
+.workspace-add-card{width:100%;background:none;border:1px dashed var(--border2);color:var(--muted);padding:8px;font-size:12px;cursor:pointer;transition:all .2s;border-radius:2px;margin:0 0 0;}
+.workspace-add-card:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-glow);}
+.workspace-add-col{width:100%;background:none;border:1px dashed var(--border2);color:var(--muted);padding:12px;font-size:12px;cursor:pointer;transition:all .2s;border-radius:4px;min-height:60px;}
+.workspace-add-col:hover{border-color:var(--accent);color:var(--accent);}
+.view-toggle{display:flex;border:1px solid var(--border2);overflow:hidden;}
+.view-btn{padding:6px 12px;font-size:11px;font-family:'DM Mono',monospace;letter-spacing:.06em;cursor:pointer;border:none;background:none;color:var(--muted2);transition:all .2s;}
+.view-btn.active{background:var(--accent);color:#000;}
+
 @keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
 .page{animation:fadeUp .3s ease forwards;}
 
@@ -456,6 +480,36 @@ tbody td.bold{color:var(--text);font-weight:500;}
     <button class="panel-close" id="panelClose">✕</button>
   </div>
   <div class="panel-body" id="panelBody"></div>
+</div>
+
+<!-- MODAL CARTÃO -->
+<div class="modal-overlay" id="modalCartao">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalCartaoTitle">EDITAR CARTÃO</div>
+      <button class="modal-close" data-close="modalCartao">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="f-group"><label>Título <span class="req">*</span></label><input type="text" id="fc2-titulo" placeholder="Título do cartão"></div>
+      <div class="f-group"><label>Descrição</label><textarea id="fc2-desc" placeholder="Detalhes do cartão..."></textarea></div>
+      <div class="f-row">
+        <div class="f-group"><label>Prazo</label><input type="date" id="fc2-prazo"></div>
+        <div class="f-group"><label>Prioridade</label>
+          <select id="fc2-prioridade">
+            <option value="">Nenhuma</option>
+            <option value="baixa">Baixa</option>
+            <option value="media">Média</option>
+            <option value="alta">Alta</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger btn-sm" style="margin-right:auto" onclick="removerCartao()">Remover</button>
+      <button class="btn btn-ghost" data-close="modalCartao">Cancelar</button>
+      <button class="btn btn-primary" id="saveCartaoBtn">SALVAR</button>
+    </div>
+  </div>
 </div>
 
 <!-- MODAL LEAD -->
@@ -800,7 +854,13 @@ function startListeners(){
 
   listen('leads','leads', ()=>{ updateNavBadge(); if(currentPage==='leads')renderLeads(); if(currentPage==='dashboard')renderDashboard(); });
   listen('clientes','clientes', ()=>{ if(currentPage==='clientes')renderClientes(); if(currentPage==='dashboard')renderDashboard(); });
-  listen('projetos','projetos', ()=>{ if(currentPage==='projetos')renderProjetos(); if(currentPage==='dashboard')renderDashboard(); });
+  listen('projetos','projetos', ()=>{
+    if(currentPage==='projetos'){
+      if(projetoAbertoId) renderWorkspace(projetoAbertoId,projetoAba);
+      else renderProjetos();
+    }
+    if(currentPage==='dashboard') renderDashboard();
+  });
   listen('agenda','agenda', ()=>{ if(currentPage==='agenda')renderAgenda(); });
   listen('usuarios','usuarios', ()=>{ if(currentPage==='usuarios')renderUsuarios(); });
 }
@@ -1336,149 +1396,73 @@ window.saveAnotacoesCliente=async(id)=>{
 };
 
 // ════════ PROJETOS ════════
-// Etapas padrão para projetos estruturais
-const ETAPAS_PADRAO = ["Levantamento de dados e visita técnica", "Análise e pré-dimensionamento", "Cálculo estrutural", "Memorial de cálculo", "Pranchas e detalhamentos", "Revisão e conferência", "Entrega ao cliente"];
+const ETAPAS_PADRAO = ["Levantamento de dados e visita técnica","Análise e pré-dimensionamento","Cálculo estrutural","Memorial de cálculo","Pranchas e detalhamentos","Revisão e conferência","Entrega ao cliente"];
+const QUADROS_PADRAO = [
+  {id:'q1',nome:'A Fazer',cor:'#4a9eff'},
+  {id:'q2',nome:'Em Andamento',cor:'#f5a623'},
+  {id:'q3',nome:'Concluído',cor:'#2dd4a0'}
+];
+let pjFiltro='';
+let projetoAbertoId=null;
+let projetoAba='quadros';
 
-let projView = 'kanban';
-let projPanelId = null;
-
+// ── LISTA DE PROJETOS ──
 function renderProjetos(){
+  projetoAbertoId=null;
+  document.getElementById('topbarActions').innerHTML=`<button class="btn btn-primary" onclick="openNovoProjeto()">+ Novo Projeto</button>`;
   const projetos=cache.projetos;
   const clientes=cache.clientes;
   let fil=projetos.filter(p=>!pjFiltro||p.clienteId===pjFiltro);
   const recTotal=fil.reduce((s,p)=>s+Number(p.valor||0),0);
-  const recEntregue=fil.filter(p=>p.status==='entregue').reduce((s,p)=>s+Number(p.valor||0),0);
-  const recPendente=fil.reduce((s,p)=>s+(p.parcelas||[]).filter(x=>!x.pago).reduce((ss,x)=>ss+Number(x.valor||0),0),0);
 
-  document.getElementById('topbarActions').innerHTML=`
-    <div class="view-toggle">
-      <button class="view-btn ${projView==='kanban'?'active':''}" onclick="setProjView('kanban')">⊞ Kanban</button>
-      <button class="view-btn ${projView==='list'?'active':''}" onclick="setProjView('list')">≡ Lista</button>
-    </div>
-    <button class="btn btn-primary" onclick="openNovoProjeto()">+ Novo Projeto</button>`;
-
-  const filterBar=`<div class="filter-bar" style="margin-bottom:16px">
-    <select onchange="pjFiltro=this.value;renderProjetos()">
-      <option value="">Todos os clientes</option>
-      ${clientes.map(c=>`<option value="${c.id}" ${pjFiltro===c.id?'selected':''}>${c.nome}</option>`).join('')}
-    </select>
-  </div>`;
-
-  const statsBar=`<div class="grid-3" style="margin-bottom:20px">
-    <div class="card card-info"><div class="card-label">Projetos</div><div class="card-value">${fil.length}</div></div>
-    <div class="card card-success"><div class="card-label">Receita Total</div><div class="card-value" style="font-size:22px">R$ ${recTotal.toLocaleString('pt-BR')}</div></div>
-    <div class="card card-warn"><div class="card-label">A Receber</div><div class="card-value" style="font-size:22px">R$ ${recPendente.toLocaleString('pt-BR')}</div></div>
-  </div>`;
-
-  if(projView==='kanban') renderKanban(fil,clientes,filterBar,statsBar);
-  else renderProjetosList(fil,clientes,filterBar,statsBar);
-}
-
-function renderKanban(fil,clientes,filterBar,statsBar){
-  const cols=[
-    {key:'elaboracao',label:'Em Elaboração',cor:'var(--accent)'},
-    {key:'aguardando',label:'Aguardando ARQ',cor:'var(--warning)'},
-    {key:'entregue',label:'Entregue',cor:'var(--success)'},
-    {key:'cancelado',label:'Cancelado',cor:'var(--danger)'}
-  ];
-  const colsHtml=cols.map(col=>{
-    const cards=fil.filter(p=>p.status===col.key);
-    return`<div class="kanban-col">
-      <div class="kanban-col-header">
-        <span class="kanban-col-title" style="color:${col.cor}">${col.label}</span>
-        <span class="kanban-col-count">${cards.length}</span>
-      </div>
-      <div class="kanban-cards drop-zone" data-status="${col.key}"
-        ondragover="event.preventDefault();this.classList.add('drag-over')"
-        ondragleave="this.classList.remove('drag-over')"
-        ondrop="onDropKanban(event,'${col.key}')">
-        ${cards.map(p=>kanbanCard(p,clientes,col.cor)).join('')}
-        ${col.key!=='entregue'&&col.key!=='cancelado'?`<button class="kanban-add-btn" onclick="openNovoProjeto()">+ Projeto</button>`:''}
-      </div>
-    </div>`;
-  }).join('');
-  document.getElementById('mainContent').innerHTML=`<div class="page" style="overflow:visible">
-    ${statsBar}${filterBar}
-    <div class="kanban-board">${colsHtml}</div>
-  </div>`;
-}
-
-function kanbanCard(p,clientes,cor){
-  const cli=clientes.find(c=>c.id===p.clienteId);
-  const hoje=new Date();hoje.setHours(0,0,0,0);
-  const prazoDate=p.prazo?new Date(p.prazo+'T00:00:00'):null;
-  const vencido=prazoDate&&prazoDate<hoje&&p.status!=='entregue';
-  const prazoHoje=prazoDate&&prazoDate.toDateString()===hoje.toDateString();
-  const deadlineCls=vencido?'vencido':prazoHoje?'hoje':'ok';
-  const etapas=p.etapas||[];
-  const etapasDone=etapas.filter(e=>e.done).length;
-  const parcelasPagas=(p.parcelas||[]).filter(x=>x.pago).reduce((s,x)=>s+Number(x.valor||0),0);
-  const parcelasPend=(p.parcelas||[]).filter(x=>!x.pago).reduce((s,x)=>s+Number(x.valor||0),0);
-  return`<div class="kanban-card" draggable="true"
-    ondragstart="onDragStart(event,'${p.id}')"
-    ondragend="event.target.classList.remove('dragging')"
-    onclick="openProjetoPanel('${p.id}')">
-    <div class="kanban-card-title">${p.descricao}</div>
-    <div class="kanban-card-client">👤 ${cli?cli.nome:'—'}</div>
-    <div class="kanban-card-meta">
-      ${p.servico?`<span class="kanban-card-tag" style="background:var(--border2);color:var(--muted2)">${lbl('servico',p.servico)}</span>`:''}
-      ${Number(p.valor||0)>0?`<span class="kanban-card-tag" style="background:rgba(45,212,160,.1);color:var(--success)">R$ ${Number(p.valor||0).toLocaleString('pt-BR')}</span>`:''}
-    </div>
-    ${etapas.length>0?`<div class="kanban-card-checklist" style="margin-bottom:8px">
-      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-        <span>Etapas</span><span class="checklist-progress">${etapasDone}/${etapas.length}</span>
-      </div>
-      <div style="height:2px;background:var(--border2);border-radius:1px;overflow:hidden">
-        <div style="height:100%;background:var(--success);width:${etapas.length?Math.round(etapasDone/etapas.length*100):0}%;transition:width .3s"></div>
-      </div>
-    </div>`:''}
-    <div class="kanban-card-progress">
-      <div style="display:flex;justify-content:space-between;margin-bottom:3px">
-        <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">PROGRESSO</span>
-        <span style="font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace">${p.progresso||0}%</span>
-      </div>
-      <div class="kanban-card-progress-bar"><div class="kanban-card-progress-fill" style="width:${p.progresso||0}%;background:${cor}"></div></div>
-    </div>
-    ${(p.parcelas&&p.parcelas.length>0)?`<div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:10px;font-family:'DM Mono',monospace">
-      <span style="color:var(--success)">✓ R$ ${parcelasPagas.toLocaleString('pt-BR')}</span>
-      ${parcelasPend>0?`<span style="color:var(--warning)">⏳ R$ ${parcelasPend.toLocaleString('pt-BR')}</span>`:''}
-    </div>`:''}
-    <div class="kanban-card-footer">
-      ${p.prazo?`<span class="kanban-deadline ${deadlineCls}">🏁 ${fmtDateBr(p.prazo)}${vencido?' ⚠':''}</span>`:'<span></span>'}
-      <button class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:11px" onclick="event.stopPropagation();openEditProjeto('${p.id}')">✎</button>
-    </div>
-  </div>`;
-}
-
-function renderProjetosList(fil,clientes,filterBar,statsBar){
   document.getElementById('mainContent').innerHTML=`<div class="page">
-    ${statsBar}${filterBar}
-    ${fil.length===0?`<div class="empty-state"><div class="empty-state-icon">📋</div><p>Nenhum projeto.</p></div>`:
+    <div class="filter-bar" style="margin-bottom:20px">
+      <select onchange="pjFiltro=this.value;renderProjetos()">
+        <option value="">Todos os clientes</option>
+        ${clientes.map(c=>`<option value="${c.id}" ${pjFiltro===c.id?'selected':''}>${c.nome}</option>`).join('')}
+      </select>
+    </div>
+    <div class="grid-3" style="margin-bottom:20px">
+      <div class="card card-info"><div class="card-label">Total</div><div class="card-value">${fil.length}</div></div>
+      <div class="card card-success"><div class="card-label">Receita Total</div><div class="card-value" style="font-size:22px">R$ ${recTotal.toLocaleString('pt-BR')}</div></div>
+      <div class="card card-accent"><div class="card-label">Ativos</div><div class="card-value">${fil.filter(p=>!['entregue','cancelado'].includes(p.status)).length}</div></div>
+    </div>
+    ${fil.length===0?`<div class="empty-state"><div class="empty-state-icon">📋</div><p>Nenhum projeto cadastrado.</p></div>`:
       fil.map(p=>{
         const cli=clientes.find(c=>c.id===p.clienteId);
         const cor=PROJ_COLORS[p.status]||'var(--accent)';
         const hoje=new Date();hoje.setHours(0,0,0,0);
         const prazoDate=p.prazo?new Date(p.prazo+'T00:00:00'):null;
         const vencido=prazoDate&&prazoDate<hoje&&p.status!=='entregue';
-        const etapas=p.etapas||[];
-        const etapasDone=etapas.filter(e=>e.done).length;
-        return`<div class="proj-card" onclick="openProjetoPanel('${p.id}')" style="cursor:pointer">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-            <div style="font-size:14px;font-weight:600;color:var(--text)">${p.descricao}</div>
-            <span class="tag" style="background:${cor}22;color:${cor}">${lbl('statusProj',p.status)}</span>
+        const etapasDone=(p.etapas||[]).filter(e=>e.done).length;
+        const etapasTotal=(p.etapas||[]).length;
+        const quadros=p.quadros||QUADROS_PADRAO;
+        const totalCartoes=quadros.reduce((s,q)=>s+(q.cartoes||[]).length,0);
+        return`<div class="proj-list-row" onclick="abrirProjetoWorkspace('${p.id}')">
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+              <span style="font-size:14px;font-weight:600;color:var(--text)">${p.descricao}</span>
+              <span class="tag" style="background:${cor}22;color:${cor};flex-shrink:0">${lbl('statusProj',p.status)}</span>
+            </div>
+            <div style="font-size:12px;color:var(--muted2);margin-bottom:8px">
+              👤 ${cli?cli.nome:'—'} · ${lbl('servico',p.servico)||'—'}
+            </div>
+            <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">
+              <span>💰 R$ ${Number(p.valor||0).toLocaleString('pt-BR')}</span>
+              ${p.inicio?`<span>🚀 ${fmtDateBr(p.inicio)}</span>`:''}
+              ${p.prazo?`<span style="color:${vencido?'var(--danger)':'inherit'}">🏁 ${fmtDateBr(p.prazo)}${vencido?' ⚠':''}</span>`:''}
+              ${etapasTotal>0?`<span>☑ ${etapasDone}/${etapasTotal}</span>`:''}
+              ${totalCartoes>0?`<span>🗂 ${totalCartoes} cartões</span>`:''}
+            </div>
           </div>
-          <div style="font-size:12px;color:var(--muted2);margin-bottom:8px">👤 ${cli?cli.nome:'—'} · ${lbl('servico',p.servico)}</div>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px;font-size:12px;color:var(--muted2)">
-            <span>💰 R$ ${Number(p.valor||0).toLocaleString('pt-BR')}</span>
-            ${p.inicio?`<span>🚀 ${fmtDateBr(p.inicio)}</span>`:''}
-            ${p.prazo?`<span style="color:${vencido?'var(--danger)':'inherit'}">🏁 ${fmtDateBr(p.prazo)}${vencido?' ⚠':''}</span>`:''}
-            ${etapas.length>0?`<span>☑ ${etapasDone}/${etapas.length} etapas</span>`:''}
+          <div style="width:120px;flex-shrink:0">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">PROGRESSO</span>
+              <span style="font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace">${p.progresso||0}%</span>
+            </div>
+            <div class="progress-track"><div class="progress-fill" style="width:${p.progresso||0}%;background:${cor}"></div></div>
           </div>
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-            <div class="progress-track" style="flex:1"><div class="progress-fill" style="width:${p.progresso||0}%;background:${cor}"></div></div>
-            <span style="font-size:11px;color:var(--muted2);font-family:'DM Mono',monospace">${p.progresso||0}%</span>
-          </div>
-          <div style="display:flex;gap:6px" onclick="event.stopPropagation()">
+          <div style="display:flex;gap:6px;flex-shrink:0" onclick="event.stopPropagation()">
             <button class="btn btn-ghost btn-sm" onclick="openEditProjeto('${p.id}')">Editar</button>
             <button class="btn btn-danger btn-sm" onclick="deleteProjeto('${p.id}')">Remover</button>
           </div>
@@ -1487,84 +1471,277 @@ function renderProjetosList(fil,clientes,filterBar,statsBar){
   </div>`;
 }
 
-window.setProjView=(v)=>{ projView=v; renderProjetos(); };
-
-// DRAG & DROP
-let dragId=null;
-window.onDragStart=(e,id)=>{ dragId=id; e.target.classList.add('dragging'); };
-window.onDropKanban=async(e,status)=>{
-  e.preventDefault(); e.currentTarget.classList.remove('drag-over');
-  if(!dragId) return;
-  await fsUpdate('projetos',dragId,{status});
-  dragId=null;
+// ── WORKSPACE DO PROJETO ──
+window.abrirProjetoWorkspace=(id)=>{
+  projetoAbertoId=id;
+  renderWorkspace(id, projetoAba);
 };
 
-// PAINEL LATERAL DO PROJETO
-window.openProjetoPanel=async(id)=>{
-  projPanelId=id;
+function renderWorkspace(id, aba){
+  projetoAba=aba;
   const p=cache.projetos.find(x=>x.id===id); if(!p) return;
   const cli=cache.clientes.find(c=>c.id===p.clienteId);
   const cor=PROJ_COLORS[p.status]||'var(--accent)';
-  const etapas=p.etapas||[];
-  const etapasDone=etapas.filter(e=>e.done).length;
   const hoje=new Date();hoje.setHours(0,0,0,0);
   const prazoDate=p.prazo?new Date(p.prazo+'T00:00:00'):null;
   const vencido=prazoDate&&prazoDate<hoje&&p.status!=='entregue';
-  const parcelasPagas=(p.parcelas||[]).filter(x=>x.pago).reduce((s,x)=>s+Number(x.valor||0),0);
-  const parcelasPend=(p.parcelas||[]).filter(x=>!x.pago).reduce((s,x)=>s+Number(x.valor||0),0);
-  document.getElementById('panelName').textContent=p.descricao;
-  document.getElementById('panelTags').innerHTML=`<span class="tag" style="background:${cor}22;color:${cor}">${lbl('statusProj',p.status)}</span>`;
-  document.getElementById('panelBody').innerHTML=`
-    <div class="proj-detail-section"><div class="proj-detail-title">Ações</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <button class="btn btn-ghost btn-sm" onclick="closePanel();openEditProjeto('${id}')">✎ Editar</button>
-        <select class="status-select" onchange="moverProjeto('${id}',this.value)">
-          ${Object.entries(L.statusProj).map(([k,v])=>`<option value="${k}" ${p.status===k?'selected':''}>${v}</option>`).join('')}
-        </select>
-      </div>
-    </div>
-    <div class="proj-detail-section"><div class="proj-detail-title">Informações</div>
-      <div class="detail-grid">
-        <div><div class="detail-key">Cliente</div><div class="detail-val">${cli?cli.nome:'—'}</div></div>
-        <div><div class="detail-key">Serviço</div><div class="detail-val">${lbl('servico',p.servico)}</div></div>
-        <div><div class="detail-key">Valor</div><div class="detail-val" style="color:var(--success)">R$ ${Number(p.valor||0).toLocaleString('pt-BR')}</div></div>
-        <div><div class="detail-key">Início</div><div class="detail-val">${fmtDateBr(p.inicio)||'—'}</div></div>
-        <div><div class="detail-key" style="${vencido?'color:var(--danger)':''}">Entrega</div><div class="detail-val" style="${vencido?'color:var(--danger)':''}">
-          ${fmtDateBr(p.prazo)||'—'}${vencido?' ⚠':''}</div></div>
-        <div><div class="detail-key">Progresso</div><div class="detail-val">${p.progresso||0}%</div></div>
-      </div>
-      <div style="margin-top:10px"><div class="progress-track"><div class="progress-fill" style="width:${p.progresso||0}%;background:${cor}"></div></div></div>
-    </div>
-    <div class="proj-detail-section">
-      <div class="proj-detail-title" style="display:flex;justify-content:space-between;align-items:center">
-        <span>Etapas <span class="checklist-progress">${etapasDone}/${etapas.length}</span></span>
-        <div style="display:flex;gap:6px">
-          ${etapas.length===0?`<button class="btn btn-ghost btn-sm" onclick="adicionarEtapasPadrao('${id}')">📋 Padrão</button>`:''}
-          <button class="btn btn-ghost btn-sm" onclick="abrirModalEtapa('${id}')">+ Etapa</button>
+
+  // Topbar com breadcrumb e botões
+  document.getElementById('topbarTitle').innerHTML=`
+    <span style="color:var(--muted);cursor:pointer;font-size:16px" onclick="renderProjetos()">Projetos</span>
+    <span style="color:var(--muted);margin:0 8px">/</span>
+    <span style="font-size:18px">${p.descricao}</span>`;
+  document.getElementById('topbarActions').innerHTML=`
+    <select class="status-select" onchange="moverProjeto('${id}',this.value)">
+      ${Object.entries(L.statusProj).map(([k,v])=>`<option value="${k}" ${p.status===k?'selected':''}>${v}</option>`).join('')}
+    </select>
+    <button class="btn btn-ghost btn-sm" onclick="openEditProjeto('${id}')">✎ Editar</button>`;
+
+  // Conteúdo principal
+  const abas=['quadros','checklist','financeiro','historico'];
+  const abaLabels={quadros:'🗂 Quadros',checklist:'☑ Checklist',financeiro:'💰 Financeiro',historico:'📋 Histórico'};
+
+  document.getElementById('mainContent').innerHTML=`<div class="page" style="overflow:visible">
+
+    <!-- HEADER DO PROJETO -->
+    <div class="card" style="margin-bottom:16px;border-left:3px solid ${cor}">
+      <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:4px">${cli?cli.nome:'—'} · ${lbl('servico',p.servico)||'—'}</div>
+          <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted2)">
+            <span>💰 R$ ${Number(p.valor||0).toLocaleString('pt-BR')}</span>
+            ${p.inicio?`<span>🚀 ${fmtDateBr(p.inicio)}</span>`:''}
+            ${p.prazo?`<span style="color:${vencido?'var(--danger)':'inherit'}">🏁 ${fmtDateBr(p.prazo)}${vencido?' ⚠':''}</span>`:''}
+          </div>
+        </div>
+        <div style="min-width:200px;flex:1">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">PROGRESSO GERAL</span>
+            <span style="font-size:11px;font-family:'DM Mono',monospace;color:${cor}">${p.progresso||0}%</span>
+          </div>
+          <div class="progress-track" style="height:6px"><div class="progress-fill" style="width:${p.progresso||0}%;background:${cor}"></div></div>
         </div>
       </div>
-      <div id="checklistPanel" style="margin-top:10px">
-        ${etapas.length===0?`<div style="font-size:12px;color:var(--muted);padding:12px 0;text-align:center">Nenhuma etapa. Use "Padrão" para etapas de projetos estruturais.</div>`:
-          etapas.map((e,i)=>`<div class="checklist-item">
-            <input type="checkbox" class="checklist-cb" ${e.done?'checked':''} onchange="toggleEtapa('${id}',${i},this.checked)">
-            <span class="checklist-label ${e.done?'done':''}">${e.nome}</span>
-            <button onclick="removerEtapa('${id}',${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0 4px">✕</button>
-          </div>`).join('')}
+    </div>
+
+    <!-- ABAS -->
+    <div class="tab-bar">
+      ${abas.map(a=>`<button class="tab-btn ${aba===a?'active':''}" onclick="renderWorkspace('${id}','${a}')">${abaLabels[a]}</button>`).join('')}
+    </div>
+
+    <!-- CONTEÚDO DA ABA -->
+    <div id="workspace-content">${renderAba(p, aba)}</div>
+  </div>`;
+}
+
+function renderAba(p, aba){
+  if(aba==='quadros') return renderAbaQuadros(p);
+  if(aba==='checklist') return renderAbaChecklist(p);
+  if(aba==='financeiro') return renderAbaFinanceiro(p);
+  if(aba==='historico') return renderAbaHistorico(p);
+  return '';
+}
+
+// ── ABA QUADROS (KANBAN PERSONALIZADO) ──
+function renderAbaQuadros(p){
+  const quadros=p.quadros||QUADROS_PADRAO;
+  return`<div style="display:flex;gap:16px;overflow-x:auto;padding-bottom:16px;min-height:400px;align-items:flex-start">
+    ${quadros.map((q,qi)=>`
+      <div class="workspace-col" data-qi="${qi}">
+        <div class="workspace-col-header">
+          <div style="display:flex;align-items:center;gap:8px;flex:1">
+            <div class="workspace-col-dot" style="background:${q.cor||'var(--accent)'}"></div>
+            <span class="workspace-col-title" contenteditable="true"
+              onblur="renomearQuadro('${p.id}',${qi},this.textContent.trim())"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}"
+              style="outline:none;cursor:text">${q.nome}</span>
+            <span class="kanban-col-count">${(q.cartoes||[]).length}</span>
+          </div>
+          <button onclick="removerQuadro('${p.id}',${qi})" title="Remover quadro"
+            style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 2px;line-height:1">×</button>
+        </div>
+        <div class="workspace-cards drop-zone" data-qi="${qi}"
+          ondragover="event.preventDefault();this.classList.add('drag-over')"
+          ondragleave="this.classList.remove('drag-over')"
+          ondrop="onDropCartao(event,'${p.id}',${qi})">
+          ${(q.cartoes||[]).map((c,ci)=>`
+            <div class="workspace-card" draggable="true"
+              ondragstart="onDragCartao(event,'${p.id}',${qi},${ci})"
+              ondragend="this.classList.remove('dragging')"
+              onclick="editarCartao('${p.id}',${qi},${ci})">
+              <div class="workspace-card-title">${c.titulo}</div>
+              ${c.desc?`<div class="workspace-card-desc">${c.desc}</div>`:''}
+              ${c.prazo?`<div class="workspace-card-prazo">📅 ${c.prazo}</div>`:''}
+              ${c.prioridade?`<span class="workspace-card-badge" style="background:${c.prioridade==='alta'?'rgba(224,82,82,.2)':c.prioridade==='media'?'rgba(245,166,35,.2)':'rgba(45,212,160,.2)'};color:${c.prioridade==='alta'?'var(--danger)':c.prioridade==='media'?'var(--warning)':'var(--success)'}">${c.prioridade}</span>`:''}
+            </div>`).join('')}
+        </div>
+        <button class="workspace-add-card" onclick="adicionarCartao('${p.id}',${qi})">+ Adicionar cartão</button>
+      </div>`).join('')}
+    <!-- Botão adicionar quadro -->
+    <div style="min-width:240px">
+      <button class="workspace-add-col" onclick="adicionarQuadro('${p.id}')">+ Novo quadro</button>
+    </div>
+  </div>`;
+}
+
+// ── ABA CHECKLIST ──
+function renderAbaChecklist(p){
+  const etapas=p.etapas||[];
+  const done=etapas.filter(e=>e.done).length;
+  return`<div style="max-width:600px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <div style="font-size:13px;color:var(--muted2)">${done} de ${etapas.length} etapas concluídas</div>
+        ${etapas.length>0?`<div class="progress-track" style="width:200px;margin-top:6px"><div class="progress-fill" style="width:${Math.round(done/etapas.length*100)}%;background:var(--success)"></div></div>`:''}
+      </div>
+      <div style="display:flex;gap:8px">
+        ${etapas.length===0?`<button class="btn btn-ghost btn-sm" onclick="adicionarEtapasPadrao('${p.id}')">📋 Padrão estrutural</button>`:''}
+        <button class="btn btn-ghost btn-sm" onclick="abrirModalEtapa('${p.id}')">+ Etapa</button>
       </div>
     </div>
-    ${(p.parcelas&&p.parcelas.length>0)?`<div class="proj-detail-section">
-      <div class="proj-detail-title">Parcelas · <span style="color:var(--success)">R$ ${parcelasPagas.toLocaleString('pt-BR')} recebido</span>${parcelasPend>0?` · <span style="color:var(--warning)">R$ ${parcelasPend.toLocaleString('pt-BR')} pendente</span>`:''}</div>
-      ${p.parcelas.map((parc,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
-        <input type="checkbox" style="accent-color:var(--success);width:14px;height:14px" ${parc.pago?'checked':''} onchange="toggleParcela('${id}',${i},this.checked)">
-        <span style="flex:1;font-size:13px;color:${parc.pago?'var(--muted)':'var(--muted2)'};${parc.pago?'text-decoration:line-through':''}">${parc.descricao||'Parcela'}</span>
-        <span style="font-size:12px;font-weight:600;color:${parc.pago?'var(--success)':'var(--text)'}">R$ ${Number(parc.valor||0).toLocaleString('pt-BR')}</span>
+    ${etapas.length===0?`<div class="empty-state" style="padding:40px 0"><div class="empty-state-icon">☑</div><p>Nenhuma etapa. Use "Padrão estrutural" para carregar etapas típicas.</p></div>`:
+      etapas.map((e,i)=>`<div class="checklist-item">
+        <input type="checkbox" class="checklist-cb" ${e.done?'checked':''} onchange="toggleEtapa('${p.id}',${i},this.checked)">
+        <span class="checklist-label ${e.done?'done':''}" style="flex:1">${e.nome}</span>
+        <button onclick="removerEtapa('${p.id}',${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px">×</button>
       </div>`).join('')}
-    </div>`:''}`;
-  openPanel();
+  </div>`;
+}
+
+// ── ABA FINANCEIRO ──
+function renderAbaFinanceiro(p){
+  const parcelas=p.parcelas||[];
+  const pagas=parcelas.filter(x=>x.pago).reduce((s,x)=>s+Number(x.valor||0),0);
+  const pend=parcelas.filter(x=>!x.pago).reduce((s,x)=>s+Number(x.valor||0),0);
+  const total=Number(p.valor||0);
+  const pct=total>0?Math.round(pagas/total*100):0;
+  return`<div style="max-width:600px">
+    <div class="grid-3" style="margin-bottom:20px">
+      <div class="card card-success"><div class="card-label">Valor Total</div><div class="card-value" style="font-size:22px">R$ ${total.toLocaleString('pt-BR')}</div></div>
+      <div class="card" style="border-top:2px solid var(--success)"><div class="card-label">Recebido</div><div class="card-value" style="font-size:22px;color:var(--success)">R$ ${pagas.toLocaleString('pt-BR')}</div></div>
+      <div class="card card-warn"><div class="card-label">A Receber</div><div class="card-value" style="font-size:22px">R$ ${pend.toLocaleString('pt-BR')}</div></div>
+    </div>
+    ${total>0?`<div class="card" style="margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:12px;color:var(--muted2)">Progresso financeiro</span>
+        <span style="font-size:12px;font-weight:600;color:var(--success)">${pct}%</span>
+      </div>
+      <div class="progress-track" style="height:8px"><div class="progress-fill" style="width:${pct}%;background:var(--success)"></div></div>
+    </div>`:''}
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="font-size:14px;font-weight:600;color:var(--text)">Parcelas</div>
+      <button class="btn btn-ghost btn-sm" onclick="closePanel();openEditProjeto('${p.id}')">✎ Gerenciar parcelas</button>
+    </div>
+    ${parcelas.length===0?`<div class="empty-state" style="padding:30px 0"><div class="empty-state-icon">💳</div><p>Nenhuma parcela cadastrada. Clique em "Gerenciar parcelas" para adicionar.</p></div>`:
+      parcelas.map((parc,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+        <input type="checkbox" style="accent-color:var(--success);width:16px;height:16px;flex-shrink:0" ${parc.pago?'checked':''} onchange="toggleParcela('${p.id}',${i},this.checked)">
+        <span style="flex:1;font-size:13px;color:${parc.pago?'var(--muted)':'var(--muted2)'};${parc.pago?'text-decoration:line-through':''}">${parc.descricao||'Parcela'}</span>
+        <span style="font-size:13px;font-weight:600;color:${parc.pago?'var(--success)':'var(--text)'}">R$ ${Number(parc.valor||0).toLocaleString('pt-BR')}</span>
+        <span style="font-size:10px;font-family:'DM Mono',monospace;padding:2px 8px;background:${parc.pago?'rgba(45,212,160,.15)':'rgba(245,166,35,.15)'};color:${parc.pago?'var(--success)':'var(--warning)'}">${parc.pago?'✓ Pago':'Pendente'}</span>
+      </div>`).join('')}
+  </div>`;
+}
+
+// ── ABA HISTÓRICO ──
+function renderAbaHistorico(p){
+  const hist=p.historico||[];
+  return`<div style="max-width:600px">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+      <button class="btn btn-ghost btn-sm" onclick="adicionarHistoricoProj('${p.id}')">+ Registro</button>
+    </div>
+    <div class="nota-form" style="margin-bottom:20px">
+      <input class="nota-input" style="flex:1" type="text" id="projHistInput" placeholder="Adicionar registro ao histórico...">
+      <button class="btn btn-primary btn-sm" onclick="salvarHistoricoProj('${p.id}')">+</button>
+    </div>
+    ${hist.length===0?`<div class="empty-state" style="padding:40px 0"><div class="empty-state-icon">📋</div><p>Nenhum registro no histórico.</p></div>`:
+      [...hist].reverse().map(h=>`<div class="timeline-item" style="margin-bottom:12px">
+        <div class="timeline-dot"></div>
+        <div><div class="timeline-date">${fmtDateTime(h.data)}</div><div class="timeline-text">${h.texto}</div></div>
+      </div>`).join('')}
+  </div>`;
+}
+
+// ── FUNÇÕES WORKSPACE ──
+window.moverProjeto=async(id,status)=>{
+  await fsUpdate('projetos',id,{status});
+  if(projetoAbertoId===id) renderWorkspace(id,projetoAba);
 };
 
-window.moverProjeto=async(id,status)=>{ await fsUpdate('projetos',id,{status}); };
+window.adicionarQuadro=async(id)=>{
+  const p=cache.projetos.find(x=>x.id===id); if(!p) return;
+  const quadros=[...(p.quadros||QUADROS_PADRAO),{id:'q'+Date.now(),nome:'Novo quadro',cor:'#8892aa',cartoes:[]}];
+  await fsUpdate('projetos',id,{quadros});
+};
 
+window.removerQuadro=async(id,qi)=>{
+  const p=cache.projetos.find(x=>x.id===id); if(!p) return;
+  const quadros=(p.quadros||QUADROS_PADRAO).filter((_,i)=>i!==qi);
+  await fsUpdate('projetos',id,{quadros});
+};
+
+window.renomearQuadro=async(id,qi,nome)=>{
+  if(!nome) return;
+  const p=cache.projetos.find(x=>x.id===id); if(!p) return;
+  const quadros=[...(p.quadros||QUADROS_PADRAO)];
+  quadros[qi]={...quadros[qi],nome};
+  await fsUpdate('projetos',id,{quadros});
+};
+
+// Drag & drop de cartões
+let dragCartao={projId:null,qi:null,ci:null};
+window.onDragCartao=(e,projId,qi,ci)=>{
+  dragCartao={projId,qi,ci};
+  e.target.classList.add('dragging');
+};
+window.onDropCartao=async(e,projId,qi)=>{
+  e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+  if(!dragCartao.projId||dragCartao.projId!==projId) return;
+  if(dragCartao.qi===qi&&dragCartao.ci!==null){
+    dragCartao={projId:null,qi:null,ci:null}; return; // mesmo quadro, não faz nada
+  }
+  const p=cache.projetos.find(x=>x.id===projId); if(!p) return;
+  const quadros=JSON.parse(JSON.stringify(p.quadros||QUADROS_PADRAO));
+  const cartao=quadros[dragCartao.qi].cartoes.splice(dragCartao.ci,1)[0];
+  quadros[qi].cartoes.push(cartao);
+  await fsUpdate('projetos',projId,{quadros});
+  dragCartao={projId:null,qi:null,ci:null};
+};
+
+window.adicionarCartao=async(id,qi)=>{
+  const titulo=prompt('Título do cartão:'); if(!titulo||!titulo.trim()) return;
+  const p=cache.projetos.find(x=>x.id===id); if(!p) return;
+  const quadros=JSON.parse(JSON.stringify(p.quadros||QUADROS_PADRAO));
+  if(!quadros[qi].cartoes) quadros[qi].cartoes=[];
+  quadros[qi].cartoes.push({id:'c'+Date.now(),titulo:titulo.trim(),desc:'',prazo:'',prioridade:''});
+  await fsUpdate('projetos',id,{quadros});
+};
+
+window.editarCartao=(id,qi,ci)=>{
+  const p=cache.projetos.find(x=>x.id===id); if(!p) return;
+  const quadros=p.quadros||QUADROS_PADRAO;
+  const c=quadros[qi]?.cartoes?.[ci]; if(!c) return;
+  document.getElementById('fc2-titulo').value=c.titulo||'';
+  document.getElementById('fc2-desc').value=c.desc||'';
+  document.getElementById('fc2-prazo').value=c.prazo||'';
+  document.getElementById('fc2-prioridade').value=c.prioridade||'';
+  document.getElementById('fc2-titulo').dataset.projId=id;
+  document.getElementById('fc2-titulo').dataset.qi=qi;
+  document.getElementById('fc2-titulo').dataset.ci=ci;
+  document.getElementById('modalCartaoTitle').textContent=c.titulo;
+  openModal('modalCartao');
+};
+
+window.removerCartao=async()=>{
+  const el=document.getElementById('fc2-titulo');
+  const id=el.dataset.projId, qi=Number(el.dataset.qi), ci=Number(el.dataset.ci);
+  const p=cache.projetos.find(x=>x.id===id); if(!p) return;
+  const quadros=JSON.parse(JSON.stringify(p.quadros||QUADROS_PADRAO));
+  quadros[qi].cartoes.splice(ci,1);
+  await fsUpdate('projetos',id,{quadros});
+  closeModal('modalCartao');
+};
+
+// Checklist
 window.toggleEtapa=async(id,idx,done)=>{
   const p=cache.projetos.find(x=>x.id===id); if(!p) return;
   const etapas=[...(p.etapas||[])];
@@ -1572,18 +1749,15 @@ window.toggleEtapa=async(id,idx,done)=>{
   const progresso=Math.round(etapas.filter(e=>e.done).length/etapas.length*100);
   await fsUpdate('projetos',id,{etapas,progresso});
 };
-
 window.removerEtapa=async(id,idx)=>{
   const p=cache.projetos.find(x=>x.id===id); if(!p) return;
   const etapas=(p.etapas||[]).filter((_,i)=>i!==idx);
   await fsUpdate('projetos',id,{etapas});
 };
-
 window.adicionarEtapasPadrao=async(id)=>{
   const etapas=ETAPAS_PADRAO.map(nome=>({nome,done:false}));
   await fsUpdate('projetos',id,{etapas});
 };
-
 let etapaProjId=null;
 window.abrirModalEtapa=(id)=>{ etapaProjId=id; document.getElementById('fe-nome').value=''; openModal('modalEtapa'); };
 document.getElementById('saveEtapaBtn').onclick=async()=>{
@@ -1594,6 +1768,7 @@ document.getElementById('saveEtapaBtn').onclick=async()=>{
   closeModal('modalEtapa');
 };
 
+// Parcelas
 window.toggleParcela=async(id,idx,pago)=>{
   const p=cache.projetos.find(x=>x.id===id); if(!p) return;
   const parcelas=[...(p.parcelas||[])];
@@ -1601,6 +1776,15 @@ window.toggleParcela=async(id,idx,pago)=>{
   await fsUpdate('projetos',id,{parcelas});
 };
 
+// Histórico
+window.salvarHistoricoProj=async(id)=>{
+  const inp=document.getElementById('projHistInput');
+  const t=inp.value.trim(); if(!t) return;
+  const p=cache.projetos.find(x=>x.id===id); if(!p) return;
+  const historico=[...(p.historico||[]),{data:new Date().toISOString(),texto:t}];
+  await fsUpdate('projetos',id,{historico});
+  inp.value='';
+};
 
 window.renderProjetos=renderProjetos;
 
@@ -2101,6 +2285,23 @@ window.aplicarPreset=(nome)=>{
 };
 
 // ════════ MODALS & PANEL ════════
+// Save cartão
+document.getElementById('saveCartaoBtn').onclick=async()=>{
+  const el=document.getElementById('fc2-titulo');
+  const titulo=el.value.trim(); if(!titulo) return;
+  const id=el.dataset.projId, qi=Number(el.dataset.qi), ci=Number(el.dataset.ci);
+  const p=cache.projetos.find(x=>x.id===id); if(!p) return;
+  const quadros=JSON.parse(JSON.stringify(p.quadros||QUADROS_PADRAO));
+  quadros[qi].cartoes[ci]={...quadros[qi].cartoes[ci],
+    titulo,
+    desc:document.getElementById('fc2-desc').value.trim(),
+    prazo:document.getElementById('fc2-prazo').value,
+    prioridade:document.getElementById('fc2-prioridade').value
+  };
+  await fsUpdate('projetos',id,{quadros});
+  closeModal('modalCartao');
+};
+
 window.openModal=(id)=>document.getElementById(id).classList.add('open');
 window.closeModal=(id)=>document.getElementById(id).classList.remove('open');
 document.querySelectorAll('[data-close]').forEach(btn=>btn.addEventListener('click',()=>closeModal(btn.dataset.close)));
