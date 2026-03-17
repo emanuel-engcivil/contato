@@ -245,6 +245,50 @@ tbody td.bold{color:var(--text);font-weight:500;}
 
 @keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
 .page{animation:fadeUp .3s ease forwards;}
+
+/* ── KANBAN ── */
+.kanban-board{display:flex;gap:16px;overflow-x:auto;padding-bottom:16px;min-height:calc(100vh - 200px);align-items:flex-start;}
+.kanban-col{min-width:280px;max-width:280px;background:var(--surface);border:1px solid var(--border);border-radius:4px;display:flex;flex-direction:column;max-height:calc(100vh - 200px);}
+.kanban-col-header{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.kanban-col-title{font-size:11px;font-family:'DM Mono',monospace;letter-spacing:.12em;text-transform:uppercase;font-weight:600;}
+.kanban-col-count{font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);background:var(--border2);padding:2px 7px;border-radius:10px;}
+.kanban-cards{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;}
+.kanban-card{background:var(--surface2);border:1px solid var(--border);padding:12px;cursor:pointer;transition:all .15s;position:relative;border-radius:2px;}
+.kanban-card:hover{border-color:var(--border2);transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.3);}
+.kanban-card.dragging{opacity:.5;transform:rotate(2deg);}
+.kanban-card-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;line-height:1.3;}
+.kanban-card-client{font-size:11px;color:var(--muted2);margin-bottom:8px;font-family:'DM Mono',monospace;}
+.kanban-card-meta{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+.kanban-card-tag{font-size:10px;font-family:'DM Mono',monospace;padding:2px 6px;border-radius:2px;}
+.kanban-card-progress{margin-bottom:8px;}
+.kanban-card-progress-bar{height:3px;background:var(--border2);border-radius:2px;overflow:hidden;margin-top:4px;}
+.kanban-card-progress-fill{height:100%;border-radius:2px;transition:width .3s;}
+.kanban-card-checklist{font-size:11px;color:var(--muted2);}
+.kanban-card-footer{display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);}
+.kanban-deadline{font-size:10px;font-family:'DM Mono',monospace;}
+.kanban-deadline.vencido{color:var(--danger);}
+.kanban-deadline.hoje{color:var(--warning);}
+.kanban-deadline.ok{color:var(--muted);}
+.kanban-valor{font-size:11px;font-family:'DM Mono',monospace;color:var(--muted2);}
+.kanban-add-btn{width:100%;background:none;border:1px dashed var(--border2);color:var(--muted);padding:8px;font-size:12px;cursor:pointer;transition:all .2s;margin-top:4px;font-family:'DM Mono',monospace;}
+.kanban-add-btn:hover{border-color:var(--accent);color:var(--accent);}
+.drop-zone{min-height:60px;}
+.drop-zone.drag-over{background:var(--accent-glow);border:1px dashed var(--accent);}
+
+/* VIEW TOGGLE */
+.view-toggle{display:flex;gap:4px;background:var(--bg);border:1px solid var(--border2);padding:3px;}
+.view-btn{padding:5px 10px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;border:none;background:none;color:var(--muted);transition:all .15s;}
+.view-btn.active{background:var(--surface2);color:var(--text);}
+
+/* PROJ DETAIL PANEL */
+.proj-detail-section{margin-bottom:20px;}
+.proj-detail-title{font-size:10px;font-family:'DM Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+.checklist-item{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);}
+.checklist-item:last-child{border-bottom:none;}
+.checklist-cb{width:16px;height:16px;accent-color:var(--success);cursor:pointer;flex-shrink:0;}
+.checklist-label{font-size:13px;color:var(--muted2);flex:1;}
+.checklist-label.done{text-decoration:line-through;color:var(--muted);}
+.checklist-progress{font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);white-space:nowrap;}
 /* ════════ MOBILE RESPONSIVO ════════ */
 /* Botão hamburguer */
 .menu-toggle{display:none;width:40px;height:40px;align-items:center;justify-content:center;background:none;border:none;color:var(--text);cursor:pointer;flex-shrink:0;}
@@ -483,6 +527,17 @@ tbody td.bold{color:var(--text);font-weight:500;}
   </div>
 </div>
 
+<!-- MODAL CHECKLIST ETAPA -->
+<div class="modal-overlay" id="modalEtapa">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header"><div class="modal-title">NOVA ETAPA</div><button class="modal-close" data-close="modalEtapa">✕</button></div>
+    <div class="modal-body">
+      <div class="f-group"><label>Nome da etapa <span class="req">*</span></label><input type="text" id="fe-nome" placeholder="Ex: Levantamento de dados"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-ghost" data-close="modalEtapa">Cancelar</button><button class="btn btn-primary" id="saveEtapaBtn">ADICIONAR</button></div>
+  </div>
+</div>
+
 <!-- MODAL PROJETO -->
 <div class="modal-overlay" id="modalProjeto">
   <div class="modal">
@@ -591,6 +646,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 // App Check — garante que só seu site acessa o Firebase
+// self.FIREBASE_APPCHECK_DEBUG_TOKEN = true; // descomente para debug local
 initializeAppCheck(app, {
   provider: new ReCaptchaV3Provider('6LcsAY0sAAAAALS3lGcBGqwrPoleVfy9D0nKSrsa'),
   isTokenAutoRefreshEnabled: true
@@ -1280,56 +1336,272 @@ window.saveAnotacoesCliente=async(id)=>{
 };
 
 // ════════ PROJETOS ════════
+// Etapas padrão para projetos estruturais
+const ETAPAS_PADRAO = ["Levantamento de dados e visita técnica", "Análise e pré-dimensionamento", "Cálculo estrutural", "Memorial de cálculo", "Pranchas e detalhamentos", "Revisão e conferência", "Entrega ao cliente"];
+
+let projView = 'kanban';
+let projPanelId = null;
+
 function renderProjetos(){
-  document.getElementById('topbarActions').innerHTML=`<button class="btn btn-primary" onclick="openNovoProjeto()">+ Novo Projeto</button>`;
   const projetos=cache.projetos;
   const clientes=cache.clientes;
   let fil=projetos.filter(p=>!pjFiltro||p.clienteId===pjFiltro);
   const recTotal=fil.reduce((s,p)=>s+Number(p.valor||0),0);
   const recEntregue=fil.filter(p=>p.status==='entregue').reduce((s,p)=>s+Number(p.valor||0),0);
-  document.getElementById('mainContent').innerHTML=`<div class="page">
-    <div class="grid-3" style="margin-bottom:20px">
-      <div class="card card-info"><div class="card-label">Total</div><div class="card-value">${fil.length}</div></div>
-      <div class="card card-success"><div class="card-label">Receita Total</div><div class="card-value" style="font-size:26px">R$ ${recTotal.toLocaleString('pt-BR')}</div></div>
-      <div class="card card-accent"><div class="card-label">Receita Entregue</div><div class="card-value" style="font-size:26px">R$ ${recEntregue.toLocaleString('pt-BR')}</div></div>
+  const recPendente=fil.reduce((s,p)=>s+(p.parcelas||[]).filter(x=>!x.pago).reduce((ss,x)=>ss+Number(x.valor||0),0),0);
+
+  document.getElementById('topbarActions').innerHTML=`
+    <div class="view-toggle">
+      <button class="view-btn ${projView==='kanban'?'active':''}" onclick="setProjView('kanban')">⊞ Kanban</button>
+      <button class="view-btn ${projView==='list'?'active':''}" onclick="setProjView('list')">≡ Lista</button>
     </div>
-    <div class="filter-bar">
-      <select onchange="pjFiltro=this.value;renderProjetos()"><option value="">Todos os clientes</option>${clientes.map(c=>`<option value="${c.id}" ${pjFiltro===c.id?'selected':''}>${c.nome}</option>`).join('')}</select>
-    </div>
-    ${fil.length===0?`<div class="empty-state"><div class="empty-state-icon">📋</div><p>Nenhum projeto.</p></div>`:
-      fil.map(p=>{const cli=clientes.find(c=>c.id===p.clienteId);const cor=PROJ_COLORS[p.status]||'var(--accent)';return`<div class="proj-card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-size:14px;font-weight:600;color:var(--text)">${p.descricao}</div><span class="tag" style="background:${cor}22;color:${cor}">${lbl('statusProj',p.status)}</span></div>
-        <div style="font-size:12px;color:var(--muted2);margin-bottom:10px">👤 ${cli?cli.nome:'—'}</div>
-        <div style="display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap">
-          <span style="font-size:12px;color:var(--muted2)">💰 <strong style="color:var(--text)">R$ ${Number(p.valor||0).toLocaleString('pt-BR')}</strong></span>
-          ${p.inicio?`<span style="font-size:12px;color:var(--muted2)">🚀 Início: <strong style="color:var(--text)">${fmtDateBr(p.inicio)}</strong></span>`:''}
-          ${p.prazo?`<span style="font-size:12px;color:var(--muted2)">🏁 Entrega: <strong style="color:${new Date(p.prazo)<new Date()&&p.status!=='entregue'?'var(--danger)':'var(--text)'}">
-            ${fmtDateBr(p.prazo)}${new Date(p.prazo)<new Date()&&p.status!=='entregue'?' ⚠':''}
-          </strong></span>`:''}
-        </div>
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><div class="progress-track" style="flex:1"><div class="progress-fill" style="width:${p.progresso||0}%;background:${cor}"></div></div><span style="font-size:11px;color:var(--muted2);font-family:'DM Mono',monospace">${p.progresso||0}%</span></div>
-        ${(p.parcelas&&p.parcelas.length>0)?`<div style="margin-bottom:10px;background:var(--bg);border:1px solid var(--border);padding:10px 12px">
-          <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">Parcelas</div>
-          ${p.parcelas.map(parc=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)">
-            <span style="font-size:12px;color:var(--muted2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${parc.descricao||'Parcela'}</span>
-            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:8px">
-              <span style="font-size:12px;font-weight:600;color:var(--text)">R$ ${Number(parc.valor||0).toLocaleString('pt-BR')}</span>
-              <span style="font-size:10px;font-family:'DM Mono',monospace;padding:2px 6px;background:${parc.pago?'rgba(45,212,160,.15)':'rgba(245,166,35,.15)'};color:${parc.pago?'var(--success)':'var(--warning)'}">${parc.pago?'✓ Pago':'Pendente'}</span>
-            </div>
-          </div>`).join('')}
-          <div style="display:flex;justify-content:space-between;padding-top:8px;margin-top:2px">
-            <span style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">RECEBIDO</span>
-            <span style="font-size:12px;font-weight:700;color:var(--success)">R$ ${(p.parcelas.filter(x=>x.pago).reduce((s,x)=>s+Number(x.valor||0),0)).toLocaleString('pt-BR')}</span>
-          </div>
-        </div>`:''}
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-ghost btn-sm" onclick="openEditProjeto('${p.id}')">Editar</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteProjeto('${p.id}')">Remover</button>
-        </div>
-      </div>`;}).join('')}
+    <button class="btn btn-primary" onclick="openNovoProjeto()">+ Novo Projeto</button>`;
+
+  const filterBar=`<div class="filter-bar" style="margin-bottom:16px">
+    <select onchange="pjFiltro=this.value;renderProjetos()">
+      <option value="">Todos os clientes</option>
+      ${clientes.map(c=>`<option value="${c.id}" ${pjFiltro===c.id?'selected':''}>${c.nome}</option>`).join('')}
+    </select>
+  </div>`;
+
+  const statsBar=`<div class="grid-3" style="margin-bottom:20px">
+    <div class="card card-info"><div class="card-label">Projetos</div><div class="card-value">${fil.length}</div></div>
+    <div class="card card-success"><div class="card-label">Receita Total</div><div class="card-value" style="font-size:22px">R$ ${recTotal.toLocaleString('pt-BR')}</div></div>
+    <div class="card card-warn"><div class="card-label">A Receber</div><div class="card-value" style="font-size:22px">R$ ${recPendente.toLocaleString('pt-BR')}</div></div>
+  </div>`;
+
+  if(projView==='kanban') renderKanban(fil,clientes,filterBar,statsBar);
+  else renderProjetosList(fil,clientes,filterBar,statsBar);
+}
+
+function renderKanban(fil,clientes,filterBar,statsBar){
+  const cols=[
+    {key:'elaboracao',label:'Em Elaboração',cor:'var(--accent)'},
+    {key:'aguardando',label:'Aguardando ARQ',cor:'var(--warning)'},
+    {key:'entregue',label:'Entregue',cor:'var(--success)'},
+    {key:'cancelado',label:'Cancelado',cor:'var(--danger)'}
+  ];
+  const colsHtml=cols.map(col=>{
+    const cards=fil.filter(p=>p.status===col.key);
+    return`<div class="kanban-col">
+      <div class="kanban-col-header">
+        <span class="kanban-col-title" style="color:${col.cor}">${col.label}</span>
+        <span class="kanban-col-count">${cards.length}</span>
+      </div>
+      <div class="kanban-cards drop-zone" data-status="${col.key}"
+        ondragover="event.preventDefault();this.classList.add('drag-over')"
+        ondragleave="this.classList.remove('drag-over')"
+        ondrop="onDropKanban(event,'${col.key}')">
+        ${cards.map(p=>kanbanCard(p,clientes,col.cor)).join('')}
+        ${col.key!=='entregue'&&col.key!=='cancelado'?`<button class="kanban-add-btn" onclick="openNovoProjeto()">+ Projeto</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('mainContent').innerHTML=`<div class="page" style="overflow:visible">
+    ${statsBar}${filterBar}
+    <div class="kanban-board">${colsHtml}</div>
   </div>`;
 }
-window.pjFiltro=pjFiltro;
+
+function kanbanCard(p,clientes,cor){
+  const cli=clientes.find(c=>c.id===p.clienteId);
+  const hoje=new Date();hoje.setHours(0,0,0,0);
+  const prazoDate=p.prazo?new Date(p.prazo+'T00:00:00'):null;
+  const vencido=prazoDate&&prazoDate<hoje&&p.status!=='entregue';
+  const prazoHoje=prazoDate&&prazoDate.toDateString()===hoje.toDateString();
+  const deadlineCls=vencido?'vencido':prazoHoje?'hoje':'ok';
+  const etapas=p.etapas||[];
+  const etapasDone=etapas.filter(e=>e.done).length;
+  const parcelasPagas=(p.parcelas||[]).filter(x=>x.pago).reduce((s,x)=>s+Number(x.valor||0),0);
+  const parcelasPend=(p.parcelas||[]).filter(x=>!x.pago).reduce((s,x)=>s+Number(x.valor||0),0);
+  return`<div class="kanban-card" draggable="true"
+    ondragstart="onDragStart(event,'${p.id}')"
+    ondragend="event.target.classList.remove('dragging')"
+    onclick="openProjetoPanel('${p.id}')">
+    <div class="kanban-card-title">${p.descricao}</div>
+    <div class="kanban-card-client">👤 ${cli?cli.nome:'—'}</div>
+    <div class="kanban-card-meta">
+      ${p.servico?`<span class="kanban-card-tag" style="background:var(--border2);color:var(--muted2)">${lbl('servico',p.servico)}</span>`:''}
+      ${Number(p.valor||0)>0?`<span class="kanban-card-tag" style="background:rgba(45,212,160,.1);color:var(--success)">R$ ${Number(p.valor||0).toLocaleString('pt-BR')}</span>`:''}
+    </div>
+    ${etapas.length>0?`<div class="kanban-card-checklist" style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span>Etapas</span><span class="checklist-progress">${etapasDone}/${etapas.length}</span>
+      </div>
+      <div style="height:2px;background:var(--border2);border-radius:1px;overflow:hidden">
+        <div style="height:100%;background:var(--success);width:${etapas.length?Math.round(etapasDone/etapas.length*100):0}%;transition:width .3s"></div>
+      </div>
+    </div>`:''}
+    <div class="kanban-card-progress">
+      <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+        <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">PROGRESSO</span>
+        <span style="font-size:10px;color:var(--muted2);font-family:'DM Mono',monospace">${p.progresso||0}%</span>
+      </div>
+      <div class="kanban-card-progress-bar"><div class="kanban-card-progress-fill" style="width:${p.progresso||0}%;background:${cor}"></div></div>
+    </div>
+    ${(p.parcelas&&p.parcelas.length>0)?`<div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:10px;font-family:'DM Mono',monospace">
+      <span style="color:var(--success)">✓ R$ ${parcelasPagas.toLocaleString('pt-BR')}</span>
+      ${parcelasPend>0?`<span style="color:var(--warning)">⏳ R$ ${parcelasPend.toLocaleString('pt-BR')}</span>`:''}
+    </div>`:''}
+    <div class="kanban-card-footer">
+      ${p.prazo?`<span class="kanban-deadline ${deadlineCls}">🏁 ${fmtDateBr(p.prazo)}${vencido?' ⚠':''}</span>`:'<span></span>'}
+      <button class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:11px" onclick="event.stopPropagation();openEditProjeto('${p.id}')">✎</button>
+    </div>
+  </div>`;
+}
+
+function renderProjetosList(fil,clientes,filterBar,statsBar){
+  document.getElementById('mainContent').innerHTML=`<div class="page">
+    ${statsBar}${filterBar}
+    ${fil.length===0?`<div class="empty-state"><div class="empty-state-icon">📋</div><p>Nenhum projeto.</p></div>`:
+      fil.map(p=>{
+        const cli=clientes.find(c=>c.id===p.clienteId);
+        const cor=PROJ_COLORS[p.status]||'var(--accent)';
+        const hoje=new Date();hoje.setHours(0,0,0,0);
+        const prazoDate=p.prazo?new Date(p.prazo+'T00:00:00'):null;
+        const vencido=prazoDate&&prazoDate<hoje&&p.status!=='entregue';
+        const etapas=p.etapas||[];
+        const etapasDone=etapas.filter(e=>e.done).length;
+        return`<div class="proj-card" onclick="openProjetoPanel('${p.id}')" style="cursor:pointer">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-size:14px;font-weight:600;color:var(--text)">${p.descricao}</div>
+            <span class="tag" style="background:${cor}22;color:${cor}">${lbl('statusProj',p.status)}</span>
+          </div>
+          <div style="font-size:12px;color:var(--muted2);margin-bottom:8px">👤 ${cli?cli.nome:'—'} · ${lbl('servico',p.servico)}</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px;font-size:12px;color:var(--muted2)">
+            <span>💰 R$ ${Number(p.valor||0).toLocaleString('pt-BR')}</span>
+            ${p.inicio?`<span>🚀 ${fmtDateBr(p.inicio)}</span>`:''}
+            ${p.prazo?`<span style="color:${vencido?'var(--danger)':'inherit'}">🏁 ${fmtDateBr(p.prazo)}${vencido?' ⚠':''}</span>`:''}
+            ${etapas.length>0?`<span>☑ ${etapasDone}/${etapas.length} etapas</span>`:''}
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <div class="progress-track" style="flex:1"><div class="progress-fill" style="width:${p.progresso||0}%;background:${cor}"></div></div>
+            <span style="font-size:11px;color:var(--muted2);font-family:'DM Mono',monospace">${p.progresso||0}%</span>
+          </div>
+          <div style="display:flex;gap:6px" onclick="event.stopPropagation()">
+            <button class="btn btn-ghost btn-sm" onclick="openEditProjeto('${p.id}')">Editar</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteProjeto('${p.id}')">Remover</button>
+          </div>
+        </div>`;
+      }).join('')}
+  </div>`;
+}
+
+window.setProjView=(v)=>{ projView=v; renderProjetos(); };
+
+// DRAG & DROP
+let dragId=null;
+window.onDragStart=(e,id)=>{ dragId=id; e.target.classList.add('dragging'); };
+window.onDropKanban=async(e,status)=>{
+  e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+  if(!dragId) return;
+  await fsUpdate('projetos',dragId,{status});
+  dragId=null;
+};
+
+// PAINEL LATERAL DO PROJETO
+window.openProjetoPanel=async(id)=>{
+  projPanelId=id;
+  const p=cache.projetos.find(x=>x.id===id); if(!p) return;
+  const cli=cache.clientes.find(c=>c.id===p.clienteId);
+  const cor=PROJ_COLORS[p.status]||'var(--accent)';
+  const etapas=p.etapas||[];
+  const etapasDone=etapas.filter(e=>e.done).length;
+  const hoje=new Date();hoje.setHours(0,0,0,0);
+  const prazoDate=p.prazo?new Date(p.prazo+'T00:00:00'):null;
+  const vencido=prazoDate&&prazoDate<hoje&&p.status!=='entregue';
+  const parcelasPagas=(p.parcelas||[]).filter(x=>x.pago).reduce((s,x)=>s+Number(x.valor||0),0);
+  const parcelasPend=(p.parcelas||[]).filter(x=>!x.pago).reduce((s,x)=>s+Number(x.valor||0),0);
+  document.getElementById('panelName').textContent=p.descricao;
+  document.getElementById('panelTags').innerHTML=`<span class="tag" style="background:${cor}22;color:${cor}">${lbl('statusProj',p.status)}</span>`;
+  document.getElementById('panelBody').innerHTML=`
+    <div class="proj-detail-section"><div class="proj-detail-title">Ações</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-ghost btn-sm" onclick="closePanel();openEditProjeto('${id}')">✎ Editar</button>
+        <select class="status-select" onchange="moverProjeto('${id}',this.value)">
+          ${Object.entries(L.statusProj).map(([k,v])=>`<option value="${k}" ${p.status===k?'selected':''}>${v}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="proj-detail-section"><div class="proj-detail-title">Informações</div>
+      <div class="detail-grid">
+        <div><div class="detail-key">Cliente</div><div class="detail-val">${cli?cli.nome:'—'}</div></div>
+        <div><div class="detail-key">Serviço</div><div class="detail-val">${lbl('servico',p.servico)}</div></div>
+        <div><div class="detail-key">Valor</div><div class="detail-val" style="color:var(--success)">R$ ${Number(p.valor||0).toLocaleString('pt-BR')}</div></div>
+        <div><div class="detail-key">Início</div><div class="detail-val">${fmtDateBr(p.inicio)||'—'}</div></div>
+        <div><div class="detail-key" style="${vencido?'color:var(--danger)':''}">Entrega</div><div class="detail-val" style="${vencido?'color:var(--danger)':''}">
+          ${fmtDateBr(p.prazo)||'—'}${vencido?' ⚠':''}</div></div>
+        <div><div class="detail-key">Progresso</div><div class="detail-val">${p.progresso||0}%</div></div>
+      </div>
+      <div style="margin-top:10px"><div class="progress-track"><div class="progress-fill" style="width:${p.progresso||0}%;background:${cor}"></div></div></div>
+    </div>
+    <div class="proj-detail-section">
+      <div class="proj-detail-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Etapas <span class="checklist-progress">${etapasDone}/${etapas.length}</span></span>
+        <div style="display:flex;gap:6px">
+          ${etapas.length===0?`<button class="btn btn-ghost btn-sm" onclick="adicionarEtapasPadrao('${id}')">📋 Padrão</button>`:''}
+          <button class="btn btn-ghost btn-sm" onclick="abrirModalEtapa('${id}')">+ Etapa</button>
+        </div>
+      </div>
+      <div id="checklistPanel" style="margin-top:10px">
+        ${etapas.length===0?`<div style="font-size:12px;color:var(--muted);padding:12px 0;text-align:center">Nenhuma etapa. Use "Padrão" para etapas de projetos estruturais.</div>`:
+          etapas.map((e,i)=>`<div class="checklist-item">
+            <input type="checkbox" class="checklist-cb" ${e.done?'checked':''} onchange="toggleEtapa('${id}',${i},this.checked)">
+            <span class="checklist-label ${e.done?'done':''}">${e.nome}</span>
+            <button onclick="removerEtapa('${id}',${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0 4px">✕</button>
+          </div>`).join('')}
+      </div>
+    </div>
+    ${(p.parcelas&&p.parcelas.length>0)?`<div class="proj-detail-section">
+      <div class="proj-detail-title">Parcelas · <span style="color:var(--success)">R$ ${parcelasPagas.toLocaleString('pt-BR')} recebido</span>${parcelasPend>0?` · <span style="color:var(--warning)">R$ ${parcelasPend.toLocaleString('pt-BR')} pendente</span>`:''}</div>
+      ${p.parcelas.map((parc,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <input type="checkbox" style="accent-color:var(--success);width:14px;height:14px" ${parc.pago?'checked':''} onchange="toggleParcela('${id}',${i},this.checked)">
+        <span style="flex:1;font-size:13px;color:${parc.pago?'var(--muted)':'var(--muted2)'};${parc.pago?'text-decoration:line-through':''}">${parc.descricao||'Parcela'}</span>
+        <span style="font-size:12px;font-weight:600;color:${parc.pago?'var(--success)':'var(--text)'}">R$ ${Number(parc.valor||0).toLocaleString('pt-BR')}</span>
+      </div>`).join('')}
+    </div>`:''}`;
+  openPanel();
+};
+
+window.moverProjeto=async(id,status)=>{ await fsUpdate('projetos',id,{status}); };
+
+window.toggleEtapa=async(id,idx,done)=>{
+  const p=cache.projetos.find(x=>x.id===id); if(!p) return;
+  const etapas=[...(p.etapas||[])];
+  etapas[idx]={...etapas[idx],done};
+  const progresso=Math.round(etapas.filter(e=>e.done).length/etapas.length*100);
+  await fsUpdate('projetos',id,{etapas,progresso});
+};
+
+window.removerEtapa=async(id,idx)=>{
+  const p=cache.projetos.find(x=>x.id===id); if(!p) return;
+  const etapas=(p.etapas||[]).filter((_,i)=>i!==idx);
+  await fsUpdate('projetos',id,{etapas});
+};
+
+window.adicionarEtapasPadrao=async(id)=>{
+  const etapas=ETAPAS_PADRAO.map(nome=>({nome,done:false}));
+  await fsUpdate('projetos',id,{etapas});
+};
+
+let etapaProjId=null;
+window.abrirModalEtapa=(id)=>{ etapaProjId=id; document.getElementById('fe-nome').value=''; openModal('modalEtapa'); };
+document.getElementById('saveEtapaBtn').onclick=async()=>{
+  const nome=document.getElementById('fe-nome').value.trim(); if(!nome||!etapaProjId) return;
+  const p=cache.projetos.find(x=>x.id===etapaProjId); if(!p) return;
+  const etapas=[...(p.etapas||[]),{nome,done:false}];
+  await fsUpdate('projetos',etapaProjId,{etapas});
+  closeModal('modalEtapa');
+};
+
+window.toggleParcela=async(id,idx,pago)=>{
+  const p=cache.projetos.find(x=>x.id===id); if(!p) return;
+  const parcelas=[...(p.parcelas||[])];
+  parcelas[idx]={...parcelas[idx],pago};
+  await fsUpdate('projetos',id,{parcelas});
+};
+
+
 window.renderProjetos=renderProjetos;
 
 window.openNovoProjeto=(clienteIdPreset)=>{
