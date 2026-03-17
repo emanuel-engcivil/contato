@@ -763,27 +763,74 @@ function updateNavBadge(){
 }
 
 // ════════ DASHBOARD ════════
+let dashCustomDe = '';
+let dashCustomAte = '';
+
+function getDashLabel(){
+  if(dashPeriod==='custom'){
+    const de=dashCustomDe?new Date(dashCustomDe).toLocaleDateString('pt-BR'):'';
+    const ate=dashCustomAte?new Date(dashCustomAte).toLocaleDateString('pt-BR'):'';
+    return de&&ate?`${de} – ${ate}`:(de||ate||'Período personalizado');
+  }
+  return `Últimos ${dashPeriod} dias`;
+}
+
+function getCutoffs(){
+  if(dashPeriod==='custom'){
+    const de = dashCustomDe ? new Date(dashCustomDe+'T00:00:00') : new Date(0);
+    const ate = dashCustomAte ? new Date(dashCustomAte+'T23:59:59') : new Date();
+    return {de, ate};
+  }
+  const ate = new Date();
+  const de = new Date(); de.setDate(de.getDate()-dashPeriod);
+  return {de, ate};
+}
+
 function renderDashboard(){
+  const {de:cutoffDe, ate:cutoffAte} = getCutoffs();
+  const isCustom = dashPeriod==='custom';
+
   document.getElementById('topbarActions').innerHTML=`
-    <button class="filter-btn ${dashPeriod===7?'active':''}" onclick="setDashPeriod(7)">7 dias</button>
-    <button class="filter-btn ${dashPeriod===30?'active':''}" onclick="setDashPeriod(30)">30 dias</button>
-    <button class="filter-btn ${dashPeriod===90?'active':''}" onclick="setDashPeriod(90)">90 dias</button>`;
-  const cutoff=new Date(); cutoff.setDate(cutoff.getDate()-dashPeriod);
-  const leads=cache.leads.filter(l=>new Date(l.data||l.criadoEm)>=cutoff);
-  const projetos=cache.projetos;
-  const clientes=cache.clientes;
+    <button class="filter-btn ${dashPeriod===7?'active':''}" onclick="setDashPeriod(7)">7d</button>
+    <button class="filter-btn ${dashPeriod===30?'active':''}" onclick="setDashPeriod(30)">30d</button>
+    <button class="filter-btn ${dashPeriod===90?'active':''}" onclick="setDashPeriod(90)">90d</button>
+    <button class="filter-btn ${dashPeriod===365?'active':''}" onclick="setDashPeriod(365)">1 ano</button>
+    <button class="filter-btn ${isCustom?'active':''}" onclick="setDashPeriod('custom')">Personalizado</button>
+    ${isCustom?`<div id="customRangeBar" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      <input type="date" id="dashDe" value="${dashCustomDe}" onchange="dashCustomDe=this.value;renderDashboard()" style="background:var(--surface);border:1px solid var(--border2);color:var(--text);font-size:12px;padding:5px 8px;outline:none;cursor:pointer">
+      <span style="font-size:11px;color:var(--muted)">até</span>
+      <input type="date" id="dashAte" value="${dashCustomAte}" onchange="dashCustomAte=this.value;renderDashboard()" style="background:var(--surface);border:1px solid var(--border2);color:var(--text);font-size:12px;padding:5px 8px;outline:none;cursor:pointer">
+    </div>`:''}`;
+
+  const leads=cache.leads.filter(l=>{
+    const d=new Date(l.data||l.criadoEm);
+    return d>=cutoffDe && d<=cutoffAte;
+  });
+  const projetos=cache.projetos.filter(p=>{
+    const d=new Date(p.criadoEm||p.prazo||'2000-01-01');
+    return d>=cutoffDe && d<=cutoffAte;
+  });
+  const clientes=cache.clientes.filter(c=>{
+    const d=new Date(c.criadoEm||'2000-01-01');
+    return d>=cutoffDe && d<=cutoffAte;
+  });
+  // Para receita financeira usamos todos os projetos (sem filtro de data)
+  const todosProjetos=cache.projetos;
+  const todosClientes=cache.clientes;
+
   const totalL=leads.length,ativosL=leads.filter(l=>!['fechado','perdido'].includes(l.status)).length;
   const propostas=leads.filter(l=>l.status==='proposta').length,fechados=leads.filter(l=>l.status==='fechado').length,perdidos=leads.filter(l=>l.status==='perdido').length;
   const conv=totalL>0?((fechados/totalL)*100).toFixed(1):'0.0';
-  const projAtivos=projetos.filter(p=>!['entregue','cancelado'].includes(p.status)).length;
-  const recTotal=projetos.reduce((s,p)=>s+Number(p.valor||0),0);
-  const recEntregue=projetos.filter(p=>p.status==='entregue').reduce((s,p)=>s+Number(p.valor||0),0);
-  const ticket=projetos.length>0?(recTotal/projetos.length).toLocaleString('pt-BR',{minimumFractionDigits:0}):'-';
+  const projAtivos=todosProjetos.filter(p=>!['entregue','cancelado'].includes(p.status)).length;
+  const recTotal=todosProjetos.reduce((s,p)=>s+Number(p.valor||0),0);
+  const recEntregue=todosProjetos.filter(p=>p.status==='entregue').reduce((s,p)=>s+Number(p.valor||0),0);
+  const ticket=todosProjetos.length>0?(recTotal/todosProjetos.length).toLocaleString('pt-BR',{minimumFractionDigits:0}):'-';
   const sColors={novo:'#4a9eff',contato:'#f5a623',negociacao:'#E85D20',proposta:'#8a57eb',fechado:'#2dd4a0',perdido:'#e05252'};
   const sCounts={};Object.keys(L.status).forEach(k=>sCounts[k]=leads.filter(l=>l.status===k).length);
   const maxS=Math.max(...Object.values(sCounts),1);
-  const pCounts={};Object.keys(L.statusProj).forEach(k=>pCounts[k]=projetos.filter(p=>p.status===k).length);
+  const pCounts={};Object.keys(L.statusProj).forEach(k=>pCounts[k]=todosProjetos.filter(p=>p.status===k).length);
   const maxP=Math.max(...Object.values(pCounts),1);
+  const periodoLabel=getDashLabel();
 
   document.getElementById('mainContent').innerHTML=`<div class="page">
     <div class="tab-bar">
@@ -792,7 +839,7 @@ function renderDashboard(){
     </div>
     <div id="dt-leads" style="display:${dashTab==='leads'?'block':'none'}">
       <div class="grid-4">
-        <div class="card card-info"><div class="card-label">Total Leads</div><div class="card-value">${totalL}</div><div class="card-sub">Últimos ${dashPeriod} dias</div></div>
+        <div class="card card-info"><div class="card-label">Total Leads</div><div class="card-value">${totalL}</div><div class="card-sub">${periodoLabel}</div></div>
         <div class="card card-accent"><div class="card-label">Leads Ativos</div><div class="card-value">${ativosL}</div><div class="card-sub">Em andamento</div></div>
         <div class="card" style="border-top:2px solid #8a57eb"><div class="card-label">Propostas</div><div class="card-value">${propostas}</div><div class="card-sub">Aguardando retorno</div></div>
         <div class="card card-success"><div class="card-label">Fechados</div><div class="card-value">${fechados}</div><div class="card-sub">${perdidos} perdidos</div></div>
@@ -808,7 +855,7 @@ function renderDashboard(){
     </div>
     <div id="dt-clientes" style="display:${dashTab==='clientes'?'block':'none'}">
       <div class="grid-4">
-        <div class="card card-info"><div class="card-label">Clientes</div><div class="card-value">${clientes.length}</div></div>
+        <div class="card card-info"><div class="card-label">Clientes</div><div class="card-value">${todosClientes.length}</div><div class="card-sub">${clientes.length} no período</div></div>
         <div class="card card-accent"><div class="card-label">Projetos Ativos</div><div class="card-value">${projAtivos}</div></div>
         <div class="card card-success"><div class="card-label">Receita Total</div><div class="card-value" style="font-size:24px">R$ ${recTotal.toLocaleString('pt-BR')}</div></div>
         <div class="card card-warn"><div class="card-label">Receita Entregue</div><div class="card-value" style="font-size:24px">R$ ${recEntregue.toLocaleString('pt-BR')}</div></div>
@@ -825,7 +872,11 @@ function renderDashboard(){
     </div>
   </div>`;
 }
-window.setDashPeriod=(p)=>{dashPeriod=p;renderDashboard();};
+window.setDashPeriod=(p)=>{
+  dashPeriod=p;
+  if(p!=='custom'){ dashCustomDe=''; dashCustomAte=''; }
+  renderDashboard();
+};
 window.setDashTab=(t)=>{dashTab=t;renderDashboard();};
 
 // ════════ LEADS ════════
@@ -1291,12 +1342,161 @@ document.getElementById('saveUsuarioBtn').onclick=async()=>{
 };
 
 // ════════ CONFIGURAÇÕES ════════
+// ════════ TEMA / PERSONALIZAÇÃO ════════
+const TEMA_KEY = 'efcrm_tema';
+const TEMA_DEFAULT = {
+  nome: 'EF·CRM',
+  subtitulo: 'Gestão de Projetos',
+  nomeUsuario: 'Emanuel Freire',
+  cargoUsuario: 'Eng. Estrutural',
+  accent: '#E85D20',
+  bg: '#080c1a',
+  surface: '#0d1225',
+  success: '#2dd4a0',
+  info: '#4a9eff',
+  danger: '#e05252',
+  warning: '#f5a623',
+  fonteTitulo: 'Bebas Neue',
+  modoEscuro: true
+};
+
+function loadTema(){ return JSON.parse(localStorage.getItem(TEMA_KEY)||'null') || TEMA_DEFAULT; }
+function saveTema(t){ localStorage.setItem(TEMA_KEY, JSON.stringify(t)); }
+
+function aplicarTema(t){
+  const r = document.documentElement.style;
+  r.setProperty('--accent', t.accent);
+  r.setProperty('--accent2', shadeColor(t.accent, -15));
+  r.setProperty('--accent-glow', hexToRgba(t.accent, 0.15));
+  r.setProperty('--bg', t.bg);
+  r.setProperty('--surface', t.surface);
+  r.setProperty('--surface2', shadeColor(t.surface, 3));
+  r.setProperty('--success', t.success);
+  r.setProperty('--info', t.info);
+  r.setProperty('--danger', t.danger);
+  r.setProperty('--warning', t.warning);
+
+  // Nome do CRM na sidebar
+  const logoEl = document.querySelector('.sidebar-logo-text');
+  if(logoEl){
+    const parts = t.nome.split('·');
+    if(parts.length===2) logoEl.innerHTML = parts[0]+'<span>·</span>'+parts[1];
+    else logoEl.textContent = t.nome;
+  }
+  const subEl = document.querySelector('.sidebar-logo-sub');
+  if(subEl) subEl.textContent = t.subtitulo||'';
+
+  // Nome/cargo do usuário na sidebar
+  const nameEl = document.getElementById('sidebarName');
+  const roleEl = document.getElementById('sidebarRole');
+  if(nameEl && t.nomeUsuario) nameEl.textContent = t.nomeUsuario;
+  if(roleEl && t.cargoUsuario) roleEl.textContent = t.cargoUsuario;
+
+  // Avatar
+  const avatarEl = document.getElementById('sidebarAvatar');
+  if(avatarEl && t.nomeUsuario) avatarEl.textContent = t.nomeUsuario.charAt(0).toUpperCase();
+
+  // Título da página
+  document.title = (t.nome||'EF·CRM').replace('·',' · ');
+}
+
+function shadeColor(hex, percent){
+  try {
+    let r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+    r=Math.min(255,Math.max(0,r+Math.round(r*percent/100)));
+    g=Math.min(255,Math.max(0,g+Math.round(g*percent/100)));
+    b=Math.min(255,Math.max(0,b+Math.round(b*percent/100)));
+    return '#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');
+  } catch { return hex; }
+}
+function hexToRgba(hex, alpha){
+  try {
+    const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  } catch { return 'rgba(232,93,32,0.15)'; }
+}
+
+// Aplicar tema ao carregar
+aplicarTema(loadTema());
+
 function renderConfiguracoes(){
   if(currentUserData?.role!=='admin'){document.getElementById('mainContent').innerHTML='<div class="empty-state"><div class="empty-state-icon">🔒</div><p>Acesso restrito a administradores.</p></div>';return;}
   const leads=cache.leads.length;
   const clientes=cache.clientes.length;
   const projetos=cache.projetos.length;
-  document.getElementById('mainContent').innerHTML=`<div class="page" style="max-width:560px">
+  const t = loadTema();
+
+  const colorField = (label, key, val) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:12px;color:var(--muted2)">${label}</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:20px;height:20px;border-radius:50%;background:${val};border:1px solid var(--border2)"></div>
+        <input type="color" value="${val}" data-key="${key}"
+          oninput="previewTema('${key}',this.value)"
+          style="width:36px;height:28px;border:none;background:none;cursor:pointer;padding:0">
+        <span style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace" id="colorval-${key}">${val}</span>
+      </div>
+    </div>`;
+
+  document.getElementById('mainContent').innerHTML=`<div class="page" style="max-width:680px">
+
+    <!-- PERSONALIZAÇÃO VISUAL -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="section-title" style="margin-bottom:4px">Personalização Visual</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:20px">As alterações são aplicadas em tempo real e salvas no seu navegador.</div>
+
+      <!-- IDENTIDADE -->
+      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin-bottom:12px">Identidade</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+        <div class="f-group" style="margin-bottom:0">
+          <label>Nome do sistema</label>
+          <input type="text" id="tema-nome" value="${t.nome||'EF·CRM'}" placeholder="EF·CRM"
+            oninput="previewTema('nome',this.value)">
+        </div>
+        <div class="f-group" style="margin-bottom:0">
+          <label>Subtítulo da sidebar</label>
+          <input type="text" id="tema-subtitulo" value="${t.subtitulo||''}" placeholder="Gestão de Projetos"
+            oninput="previewTema('subtitulo',this.value)">
+        </div>
+        <div class="f-group" style="margin-bottom:0">
+          <label>Seu nome</label>
+          <input type="text" id="tema-nomeUsuario" value="${t.nomeUsuario||''}" placeholder="Emanuel Freire"
+            oninput="previewTema('nomeUsuario',this.value)">
+        </div>
+        <div class="f-group" style="margin-bottom:0">
+          <label>Seu cargo / especialidade</label>
+          <input type="text" id="tema-cargoUsuario" value="${t.cargoUsuario||''}" placeholder="Eng. Estrutural"
+            oninput="previewTema('cargoUsuario',this.value)">
+        </div>
+      </div>
+
+      <!-- CORES -->
+      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px">Cores</div>
+      ${colorField('Cor de destaque (accent)', 'accent', t.accent||'#E85D20')}
+      ${colorField('Fundo principal', 'bg', t.bg||'#080c1a')}
+      ${colorField('Superfície / Cards', 'surface', t.surface||'#0d1225')}
+      ${colorField('Sucesso / Verde', 'success', t.success||'#2dd4a0')}
+      ${colorField('Info / Azul', 'info', t.info||'#4a9eff')}
+      ${colorField('Perigo / Vermelho', 'danger', t.danger||'#e05252')}
+      ${colorField('Aviso / Amarelo', 'warning', t.warning||'#f5a623')}
+
+      <!-- PRESETS -->
+      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin:20px 0 12px">Temas prontos</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+        <button class="btn btn-ghost btn-sm" onclick="aplicarPreset('laranja')">🟠 Laranja (padrão)</button>
+        <button class="btn btn-ghost btn-sm" onclick="aplicarPreset('azul')">🔵 Azul oceano</button>
+        <button class="btn btn-ghost btn-sm" onclick="aplicarPreset('verde')">🟢 Verde floresta</button>
+        <button class="btn btn-ghost btn-sm" onclick="aplicarPreset('roxo')">🟣 Roxo noturno</button>
+        <button class="btn btn-ghost btn-sm" onclick="aplicarPreset('claro')">⚪ Modo claro</button>
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:16px;border-top:1px solid var(--border)">
+        <button class="btn btn-ghost btn-sm" onclick="resetarTema()">Restaurar padrão</button>
+        <button class="btn btn-primary" onclick="salvarTema()">💾 Salvar personalização</button>
+      </div>
+    </div>
+
+    <!-- CONTA FIREBASE -->
     <div class="card" style="margin-bottom:16px">
       <div class="section-title" style="margin-bottom:16px">Conta Firebase</div>
       <div class="cfg-row"><span class="cfg-key">USUÁRIO LOGADO</span><span class="cfg-val">${currentUser.email}</span></div>
@@ -1304,6 +1504,8 @@ function renderConfiguracoes(){
       <div class="cfg-row"><span class="cfg-key">PROJETO FIREBASE</span><span class="cfg-val">ef-crm-d78da</span></div>
       <div class="cfg-row"><span class="cfg-key">BANCO</span><span class="cfg-val">Firestore (us-east1)</span></div>
     </div>
+
+    <!-- DADOS -->
     <div class="card">
       <div class="section-title" style="margin-bottom:16px">Dados no Banco</div>
       <div class="cfg-row"><span class="cfg-key">LEADS</span><span class="cfg-val" style="color:var(--accent)">${leads}</span></div>
@@ -1311,8 +1513,60 @@ function renderConfiguracoes(){
       <div class="cfg-row"><span class="cfg-key">PROJETOS</span><span class="cfg-val" style="color:var(--accent)">${projetos}</span></div>
       <div class="cfg-row"><span class="cfg-key">VERSÃO</span><span class="cfg-val">2.0.0 · Firebase</span></div>
     </div>
+
   </div>`;
 }
+
+// Preview em tempo real
+window.previewTema=(key, val)=>{
+  const t = loadTema();
+  t[key] = val;
+  // atualizar label da cor se for cor
+  const labelEl = document.getElementById('colorval-'+key);
+  if(labelEl) labelEl.textContent = val;
+  aplicarTema(t);
+  // não salva ainda, só preview
+};
+
+window.salvarTema=()=>{
+  const t = loadTema();
+  // pegar valores dos campos de texto
+  ['nome','subtitulo','nomeUsuario','cargoUsuario'].forEach(k=>{
+    const el = document.getElementById('tema-'+k);
+    if(el) t[k] = el.value.trim();
+  });
+  // pegar valores das cores
+  document.querySelectorAll('input[type="color"][data-key]').forEach(el=>{
+    t[el.dataset.key] = el.value;
+  });
+  saveTema(t);
+  aplicarTema(t);
+  const btn = event.target;
+  const orig = btn.textContent;
+  btn.textContent = '✓ Salvo!';
+  setTimeout(()=>{ btn.textContent=orig; }, 1500);
+};
+
+window.resetarTema=()=>{
+  saveTema(TEMA_DEFAULT);
+  aplicarTema(TEMA_DEFAULT);
+  renderConfiguracoes();
+};
+
+const PRESETS = {
+  laranja: { accent:'#E85D20', bg:'#080c1a', surface:'#0d1225', success:'#2dd4a0', info:'#4a9eff', danger:'#e05252', warning:'#f5a623' },
+  azul:    { accent:'#3b82f6', bg:'#050e1a', surface:'#0a1628', success:'#10b981', info:'#60a5fa', danger:'#ef4444', warning:'#f59e0b' },
+  verde:   { accent:'#22c55e', bg:'#050f0a', surface:'#091a10', success:'#34d399', info:'#38bdf8', danger:'#f87171', warning:'#fbbf24' },
+  roxo:    { accent:'#8b5cf6', bg:'#08050f', surface:'#110d1e', success:'#2dd4a0', info:'#60a5fa', danger:'#f87171', warning:'#fbbf24' },
+  claro:   { accent:'#E85D20', bg:'#f0f2f5', surface:'#ffffff', success:'#16a34a', info:'#2563eb', danger:'#dc2626', warning:'#d97706' }
+};
+
+window.aplicarPreset=(nome)=>{
+  const t = {...loadTema(), ...PRESETS[nome]};
+  saveTema(t);
+  aplicarTema(t);
+  renderConfiguracoes();
+};
 
 // ════════ MODALS & PANEL ════════
 window.openModal=(id)=>document.getElementById(id).classList.add('open');
