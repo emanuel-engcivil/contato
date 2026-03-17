@@ -732,6 +732,7 @@ let pjFiltro = ''; // filtra por status
 let pjPeriodo = ''; // filtra por período (igual dashboard)
 let pjCustomDe = '';
 let pjCustomAte = '';
+let pjBusca = ''; // busca por nome/cliente
 
 // Cache local para performance
 let cache = { leads:[], clientes:[], projetos:[], agenda:[], usuarios:[] };
@@ -1446,10 +1447,17 @@ function renderProjetos(){
   const projetos=cache.projetos;
   const clientes=cache.clientes;
 
-  // Filtro por período
+  // Filtros
   const cutoffs=getPjCutoffs();
   let fil=projetos.filter(p=>{
     if(pjFiltro && p.status!==pjFiltro) return false;
+    if(pjBusca){
+      const q=pjBusca.toLowerCase();
+      const cli=clientes.find(c=>c.id===p.clienteId);
+      const nomeProj=(p.descricao||'').toLowerCase();
+      const nomeCli=(cli?cli.nome:'').toLowerCase();
+      if(!nomeProj.includes(q) && !nomeCli.includes(q)) return false;
+    }
     if(cutoffs){
       const dataRef=p.inicio||p.criadoEm;
       if(!dataRef) return true;
@@ -1463,8 +1471,12 @@ function renderProjetos(){
 
   document.getElementById('mainContent').innerHTML=`<div class="page">
     <div class="filter-bar" style="margin-bottom:16px;flex-wrap:wrap;gap:8px">
+      <input type="text" placeholder="Buscar projeto ou cliente..." value="${pjBusca}"
+        oninput="pjBusca=this.value;renderProjetos()"
+        style="min-width:200px;background:var(--surface);border:1px solid var(--border2);color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;padding:8px 12px;outline:none;transition:border-color .2s;"
+        onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border2)'">
       <select onchange="pjFiltro=this.value;renderProjetos()">
-        <option value="">Todos os status</option>
+        <option value="" ${pjFiltro===''?'selected':''}>Todos os status</option>
         <option value="elaboracao" ${pjFiltro==='elaboracao'?'selected':''}>Em elaboração</option>
         <option value="aguardando" ${pjFiltro==='aguardando'?'selected':''}>Aguardando ARQ</option>
         <option value="entregue" ${pjFiltro==='entregue'?'selected':''}>Entregue</option>
