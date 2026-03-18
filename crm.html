@@ -1472,7 +1472,7 @@ window.saveAnotacoesCliente=async(id)=>{
 };
 
 // ════════ PARCEIROS ════════
-const ESPECIALIDADES_PADRAO = ['Arquitetura','Hidráulica','Elétrica','Estrutural','Fundações / Geotecnia','Execução / Obra','Topografia','Interiores','Outro'];
+const ESPECIALIDADES_PADRAO = ['Arquitetura','Hidráulica','Elétrica','Estrutural','Fundações / Geotecnia','Execução / Obra','Topografia','Interiores'];
 
 async function getEspecialidades(){
   try {
@@ -1546,16 +1546,49 @@ async function renderEspecialidadesCheckboxes(selecionadas=[]){
   const box = document.getElementById('fp2-especialidades');
   if(!box) return;
   box.innerHTML = lista.map(e=>`
-    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--muted2);padding:6px 10px;border:1px solid var(--border2);transition:border-color .2s"
-      onmouseover="this.style.borderColor='var(--border)'" onmouseout="this.style.borderColor='var(--border2)'">
-      <input type="checkbox" value="${e}" ${selecionadas.includes(e)?'checked':''} style="accent-color:var(--accent);width:14px;height:14px">
+    <label id="esp-label-${e.replace(/[^a-z0-9]/gi,'_')}"
+      data-esp="${e.replace(/"/g,'&quot;')}"
+      style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--muted2);padding:6px 10px;border:1px solid var(--border2);transition:all .15s;user-select:none"
+      onclick="toggleEspecialidade(this,'${e.replace(/'/g,'\\'')}')">
+      <span class="esp-check" style="width:14px;height:14px;border:1.5px solid var(--muted);border-radius:2px;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .15s;font-size:10px;color:#000"></span>
       ${e}
     </label>`).join('') +
     `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:var(--accent);padding:6px 10px;border:1px dashed var(--border2)"
-      onclick="addNovaEspecialidade()">
+      onclick="event.stopPropagation();addNovaEspecialidade()">
       <span style="font-size:16px;line-height:1">+</span> Nova especialidade
     </label>`;
+  // Marcar as selecionadas via JS
+  selecionadas.forEach(e=>{
+    const id='esp-label-'+e.replace(/[^a-z0-9]/gi,'_');
+    const lbl=document.getElementById(id);
+    if(lbl){
+      lbl.dataset.selected='1';
+      lbl.style.borderColor='var(--accent)';
+      lbl.style.background='rgba(232,93,32,.08)';
+      lbl.style.color='var(--text)';
+      const chk=lbl.querySelector('.esp-check');
+      if(chk){ chk.style.background='var(--accent)'; chk.style.borderColor='var(--accent)'; chk.textContent='✓'; }
+    }
+  });
 }
+
+window.toggleEspecialidade=(lbl, esp)=>{
+  const sel = lbl.dataset.selected==='1';
+  const chk = lbl.querySelector('.esp-check');
+  if(sel){
+    lbl.dataset.selected='';
+    lbl.style.borderColor='var(--border2)';
+    lbl.style.background='';
+    lbl.style.color='var(--muted2)';
+    if(chk){ chk.style.background=''; chk.style.borderColor='var(--muted)'; chk.textContent=''; }
+  } else {
+    lbl.dataset.selected='1';
+    lbl.style.borderColor='var(--accent)';
+    lbl.style.background='rgba(232,93,32,.08)';
+    lbl.style.color='var(--text)';
+    if(chk){ chk.style.background='var(--accent)'; chk.style.borderColor='var(--accent)'; chk.textContent='✓'; }
+  }
+};
 
 window.addNovaEspecialidade=async()=>{
   const nome=prompt('Nome da nova especialidade:');
@@ -1572,7 +1605,7 @@ window.addNovaEspecialidade=async()=>{
 function getEspecialidadesSelecionadas(){
   const box=document.getElementById('fp2-especialidades');
   if(!box) return [];
-  return [...box.querySelectorAll('input[type=checkbox]:checked')].map(el=>el.value);
+  return [...box.querySelectorAll('label[data-selected="1"][data-esp]')].map(lbl=>lbl.dataset.esp);
 }
 
 window.openNovoParceiro=async()=>{
