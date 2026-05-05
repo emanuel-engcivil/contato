@@ -2502,6 +2502,14 @@ function orcCalc(){
 
 function orcAtualizarResultado(){
   const c=orcCalc();
+  // Atualiza display complexidade
+  const complexTotalEl=document.getElementById('orc-complexTotal');
+  if(complexTotalEl){
+    complexTotalEl.textContent=c.complexPct>0
+      ?`+ ${Math.round(c.complexPct*100)}% = ${orcFmt(c.complexVal)}`
+      :'+ 0% (sem acréscimos)';
+    complexTotalEl.style.color=c.complexPct>0?'var(--accent)':'var(--muted)';
+  }
   const el=id=>document.getElementById(id);
   if(!el('orc-res-total')) return;
   el('orc-res-total').textContent=orcFmt(c.total);
@@ -2578,10 +2586,24 @@ window.orcRenderComplexidade=()=>{
     <div style="display:grid;grid-template-columns:44px 1fr 70px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
       <input type="number" value="${c.qty}" min="0" max="20"
         style="padding:5px 6px;text-align:center;font-family:'DM Mono',monospace;font-size:13px;background:var(--bg);border:1px solid var(--border2);color:var(--text);outline:none;width:100%"
-        oninput="orcComplexidade[${i}].qty=parseInt(this.value)||0;orcAtualizarResultado()">
+        oninput="orcComplexidade[${i}].qty=parseInt(this.value)||0;orcAtualizarComplexTotal();orcAtualizarResultado()">
       <span style="font-size:12px;color:var(--muted2)">${c.label}</span>
-      <span style="font-family:'DM Mono',monospace;font-size:11px;color:${c.qty>0?'var(--accent)':'var(--muted)'};text-align:right">${c.qty>0?`+${Math.round(c.qty*c.pct*100)}%`:`+${Math.round(c.pct*100)}%/un`}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:11px;color:${c.qty>0?'var(--accent)':'var(--muted)'};text-align:right" id="orc-cpct-${i}">${c.qty>0?`+${Math.round(c.qty*c.pct*100)}%`:`+${Math.round(c.pct*100)}%/un`}</span>
     </div>`).join('');
+};
+
+window.orcAtualizarComplexTotal=()=>{
+  const total=orcComplexidade.reduce((s,c)=>s+(c.qty*c.pct),0);
+  const el=document.getElementById('orc-complexTotal');
+  if(el) el.textContent=total>0?`+ ${Math.round(total*100)}% = acréscimo ativo`:'+ 0% (sem acréscimos)';
+  // Atualiza labels individuais
+  orcComplexidade.forEach((c,i)=>{
+    const lbl=document.getElementById(`orc-cpct-${i}`);
+    if(lbl){
+      lbl.style.color=c.qty>0?'var(--accent)':'var(--muted)';
+      lbl.textContent=c.qty>0?`+${Math.round(c.qty*c.pct*100)}%`:`+${Math.round(c.pct*100)}%/un`;
+    }
+  });
 };
 
 window.orcRenderEscopo=(tipo)=>{
@@ -2991,11 +3013,15 @@ function renderOrcamento(){
   orcRenderEscopo('incluso');
   orcRenderEscopo('excluso');
   orcRenderCustosExtras();
-  setTimeout(orcAtualizarResultado, 50);
-
-  // Listeners extras
-  document.getElementById('orc-forma').addEventListener('change', orcAtualizarResultado);
-  document.getElementById('orc-prazo').addEventListener('input', orcAtualizarResultado);
+  setTimeout(()=>{
+    orcAtualizarResultado();
+    // Listener global — qualquer input/change dentro da coluna do formulário atualiza o resultado
+    const col=document.querySelector('#mainContent > div > div:first-child');
+    if(col){
+      col.addEventListener('input', orcAtualizarResultado);
+      col.addEventListener('change', orcAtualizarResultado);
+    }
+  }, 80);
 }
 
 window.orcToggleTipo=()=>{
