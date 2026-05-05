@@ -433,6 +433,9 @@ tbody td.bold{color:var(--text);font-weight:500;}
         <div class="nav-item" data-page="projetos">
           <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 2h12v12H2z"/><path d="M5 6h6M5 9h4"/></svg>Projetos
         </div>
+        <div class="nav-item" data-page="orcamento">
+          <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1" y="1" width="11" height="14" rx="1"/><path d="M4 5h5M4 8h5M4 11h3" stroke-linecap="round"/><circle cx="13" cy="13" r="3" fill="var(--bg)" stroke="var(--accent)" stroke-width="1.4"/><path d="M13 11.5v1.5l1 1" stroke="var(--accent)" stroke-linecap="round" stroke-width="1.2"/></svg>Orçamento
+        </div>
         <div class="nav-item" data-page="agenda">
           <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="2" width="14" height="13" rx="1"/><path d="M1 6h14"/><path d="M5 1v3M11 1v3" stroke-linecap="round"/></svg>Agenda
         </div>
@@ -947,7 +950,7 @@ async function fsDelete(col, id){
 }
 
 // ════════ NAVIGATION ════════
-const PAGE_TITLES={dashboard:'Dashboard',leads:'Leads',clientes:'Clientes',parceiros:'Parceiros',projetos:'Projetos',agenda:'Agenda',usuarios:'Usuários',formulario:'Editor de Formulário',configuracoes:'Configurações'};
+const PAGE_TITLES={dashboard:'Dashboard',leads:'Leads',clientes:'Clientes',parceiros:'Parceiros',projetos:'Projetos',orcamento:'Orçamento',agenda:'Agenda',usuarios:'Usuários',formulario:'Editor de Formulário',configuracoes:'Configurações'};
 
 document.querySelectorAll('.nav-item').forEach(item=>{
   item.addEventListener('click',()=>{ closePanel(); renderPage(item.dataset.page); });
@@ -966,7 +969,7 @@ function renderPage(page){
   document.querySelectorAll('.nav-item').forEach(i=>i.classList.toggle('active',i.dataset.page===page));
   document.getElementById('topbarTitle').textContent=PAGE_TITLES[page]||page;
   document.getElementById('topbarActions').innerHTML='';
-  const pages={dashboard:renderDashboard,leads:renderLeads,clientes:renderClientes,parceiros:renderParceiros,projetos:renderProjetos,agenda:renderAgenda,usuarios:renderUsuarios,formulario:renderFormulario,configuracoes:renderConfiguracoes};
+  const pages={dashboard:renderDashboard,leads:renderLeads,clientes:renderClientes,parceiros:renderParceiros,projetos:renderProjetos,orcamento:renderOrcamento,agenda:renderAgenda,usuarios:renderUsuarios,formulario:renderFormulario,configuracoes:renderConfiguracoes};
   pages[page]?.();
 }
 
@@ -2376,6 +2379,860 @@ function loadParcelasForm(parcelas){
 
 
 // ════════ AGENDA ════════
+// ════════ ORÇAMENTO ════════
+const ORC_TIPOS_PAV=[
+  {value:'pilotis',label:'Pilotis'},{value:'terreo',label:'Térreo'},
+  {value:'tipo',label:'Pavimento Tipo'},{value:'cobertura',label:'Cobertura'},
+  {value:'subsolo',label:'Subsolo'},{value:'atico',label:'Ático / Mansarda'},
+  {value:'mezanino',label:'Mezanino'},
+];
+const ORC_COMPLEXIDADE=[
+  {id:'bal24',label:'Balanço (2–4m)',pct:0.10,qty:0},
+  {id:'bal4p',label:'Balanço (> 4m)',pct:0.20,qty:0},
+  {id:'vt24',label:'Viga de transição (2–4m)',pct:0.10,qty:0},
+  {id:'vt46',label:'Viga de transição (4–6m)',pct:0.15,qty:0},
+  {id:'vt6p',label:'Viga de transição (> 6m)',pct:0.20,qty:0},
+  {id:'vao69',label:'Viga vão livre (6–9m)',pct:0.10,qty:0},
+  {id:'vao9p',label:'Viga vão livre (> 9m)',pct:0.15,qty:0},
+  {id:'escada',label:'Escada moderna / especial',pct:0.07,qty:0},
+  {id:'desn36',label:'Terreno desnível (3–6m)',pct:0.10,qty:0},
+  {id:'desn6p',label:'Terreno desnível (> 6m)',pct:0.15,qty:0},
+  {id:'fundp',label:'Fundação profunda',pct:0.15,qty:0},
+  {id:'funde',label:'Fundação excêntrica',pct:0.10,qty:0},
+  {id:'piscina',label:'Piscina na cobertura',pct:0.20,qty:0},
+  {id:'detalhe',label:'Detalhe especial / elemento extra',pct:0.10,qty:0},
+];
+const ORC_INCLUSO_DEFAULT=[
+  {txt:'Projeto estrutural completo (formas e armação)',on:true},
+  {txt:'Memorial de cálculo estrutural',on:true},
+  {txt:'Planilha de quantitativo de aço',on:true},
+  {txt:'ART de projeto',on:true},
+  {txt:'2 revisões após entrega do projeto executivo',on:true},
+  {txt:'Arquivo digital (DWG + PDF)',on:false},
+  {txt:'Detalhamento de fundações',on:false},
+  {txt:'Relatório de visita técnica',on:false},
+];
+const ORC_EXCLUSO_DEFAULT=[
+  {txt:'Projeto arquitetônico',on:true},
+  {txt:'Sondagem / Laudo de solo (se necessário)',on:true},
+  {txt:'Acompanhamento de execução de obra',on:true},
+  {txt:'Levantamento planialtimétrico',on:false},
+  {txt:'Projeto hidrossanitário',on:false},
+  {txt:'Projeto elétrico',on:false},
+  {txt:'Aprovação em órgãos públicos',on:false},
+];
+
+let orcPavimentos=[
+  {tipo:'terreo',nome:'Térreo',area:150},
+  {tipo:'tipo',nome:'Pavimento Tipo',area:150,repeticoes:2},
+  {tipo:'cobertura',nome:'Cobertura',area:150},
+];
+let orcComplexidade=ORC_COMPLEXIDADE.map(c=>({...c}));
+let orcIncluso=ORC_INCLUSO_DEFAULT.map(i=>({...i}));
+let orcExcluso=ORC_EXCLUSO_DEFAULT.map(i=>({...i}));
+let orcCustosExtras=[];
+
+function orcFmt(v){return'R$ '+(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function orcFmtM2(v){return(v||0).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+' m²';}
+
+function orcCalcAreaEquiv(){
+  const temTipo=document.getElementById('orc-temTipo')?.checked??true;
+  const fatRep=(parseInt(document.getElementById('orc-fatRep')?.value||25))/100;
+  let areaEquiv=0; const detalhes=[];
+  orcPavimentos.forEach(p=>{
+    const area=p.area||0;
+    if(p.tipo==='tipo'&&temTipo){
+      const rep=p.repeticoes||1;
+      const equiv=area+(rep-1)*area*(1+fatRep);
+      detalhes.push({nome:`Pav. Tipo (${rep}×)`,area,fator:`1 + ${rep-1}×(1+${Math.round(fatRep*100)}%)`,equiv});
+      areaEquiv+=equiv;
+    } else {
+      detalhes.push({nome:p.nome||p.tipo,area,fator:'1×',equiv:area});
+      areaEquiv+=area;
+    }
+  });
+  return {areaEquiv,detalhes};
+}
+
+function orcCalc(){
+  const {areaEquiv,detalhes}=orcCalcAreaEquiv();
+  const porM2=document.getElementById('orc-modoPorM2')?.checked??true;
+  const margem=(parseInt(document.getElementById('orc-margem')?.value||10))/100;
+  const custoHora=parseFloat(document.getElementById('orc-custoHora')?.value||85);
+  const dias=parseInt(document.getElementById('orc-dias')?.value||20)||1;
+  const horas=parseFloat(document.getElementById('orc-horas')?.value||6)||1;
+
+  let valorBase=0;
+  if(porM2) valorBase=areaEquiv*(parseFloat(document.getElementById('orc-valorM2')?.value||15)||0);
+  else valorBase=parseFloat(document.getElementById('orc-valorFixo')?.value||0)||0;
+
+  const complexPct=orcComplexidade.reduce((s,c)=>s+(c.qty*c.pct),0);
+  const complexVal=valorBase*complexPct;
+  const valorComComplex=valorBase+complexVal;
+  const margemVal=valorComComplex*margem;
+  const valorComMargem=valorComComplex+margemVal;
+
+  let custos=0;
+  if(document.getElementById('orc-artAtivo')?.checked) custos+=parseFloat(document.getElementById('orc-art')?.value||0)||0;
+  if(document.getElementById('orc-visitaAtivo')?.checked) custos+=(parseInt(document.getElementById('orc-nVisitas')?.value||0)||0)*(parseFloat(document.getElementById('orc-vlrVisita')?.value||0)||0);
+  if(document.getElementById('orc-impressaoAtivo')?.checked) custos+=parseFloat(document.getElementById('orc-impressao')?.value||0)||0;
+  if(document.getElementById('orc-deslocAtivo')?.checked) custos+=parseFloat(document.getElementById('orc-desloc')?.value||0)||0;
+  orcCustosExtras.forEach(c=>{if(c.ativo)custos+=c.valor||0;});
+
+  const impostoPct=parseFloat(document.getElementById('orc-impostoPct')?.value||6)||0;
+  const impostoAtivo=document.getElementById('orc-impostoAtivo')?.checked??false;
+  const impostoVal=impostoAtivo?valorComMargem*(impostoPct/100):0;
+
+  const total=valorComMargem+custos+impostoVal;
+  const totalHoras=dias*horas;
+  const remHora=totalHoras>0?valorComMargem/totalHoras:0;
+
+  const forma=document.getElementById('orc-forma')?.value||'50_50';
+  let entrada=0,restante=total;
+  if(forma==='50_50'){entrada=total*0.5;restante=total*0.5;}
+  else if(forma==='30_70'){entrada=total*0.3;restante=total*0.7;}
+  else if(forma==='100_entrega'){entrada=0;restante=total;}
+  else if(forma==='100_inicio'){entrada=total;restante=0;}
+  else if(forma==='parcelado'){entrada=total/3;restante=total*2/3;}
+  const entMin=parseFloat(document.getElementById('orc-entradaMin')?.value||0)||0;
+  if(entMin>entrada){entrada=entMin;restante=total-entrada;}
+
+  return {areaEquiv,detalhes,valorBase,complexPct,complexVal,margemVal,margem,custos,impostoVal,impostoPct,impostoAtivo,total,totalHoras,remHora,custoHora,entrada,restante};
+}
+
+function orcAtualizarResultado(){
+  const c=orcCalc();
+  const el=id=>document.getElementById(id);
+  if(!el('orc-res-total')) return;
+  el('orc-res-total').textContent=orcFmt(c.total);
+  el('orc-res-porm2').textContent=c.areaEquiv>0?`${orcFmt(c.total/c.areaEquiv)}/m²`:'—';
+  el('orc-res-areaEquiv').textContent=orcFmtM2(c.areaEquiv);
+  el('orc-res-base').textContent=orcFmt(c.valorBase);
+
+  // Linha complexidade
+  const cRow=el('orc-res-complex-row');
+  if(cRow){cRow.style.display=c.complexPct>0?'flex':'none';
+    cRow.innerHTML=`<span style="color:var(--muted2)">Complexidade (${Math.round(c.complexPct*100)}%)</span><span style="font-family:'DM Mono',monospace;color:var(--accent)">+ ${orcFmt(c.complexVal)}</span>`;}
+  el('orc-res-margem').textContent=`+ ${orcFmt(c.margemVal)} (${Math.round(c.margem*100)}%)`;
+  el('orc-res-custos').textContent=`+ ${orcFmt(c.custos)}`;
+
+  const iRow=el('orc-res-imposto-row');
+  if(iRow){iRow.style.display=c.impostoAtivo?'flex':'none';
+    iRow.innerHTML=`<span style="color:var(--muted2)">Impostos (${c.impostoPct}%)</span><span style="font-family:'DM Mono',monospace;color:var(--danger)">+ ${orcFmt(c.impostoVal)}</span>`;}
+
+  el('orc-res-horas').textContent=`${c.totalHoras}h`;
+  el('orc-res-remhora').textContent=`${orcFmt(c.remHora)}/h`;
+  el('orc-res-custo').textContent=`${orcFmt(c.custoHora)}/h`;
+  const alerta=el('orc-res-alerta');
+  if(alerta){
+    if(c.custoHora>0&&c.remHora<c.custoHora) alerta.innerHTML=`<div class="info-box" style="border-color:var(--danger);background:rgba(224,82,82,.07);margin-top:6px;font-size:11px">⚠ Remuneração/h abaixo do custo real.</div>`;
+    else if(c.custoHora>0&&c.remHora>=c.custoHora*1.5) alerta.innerHTML=`<div class="info-box" style="border-color:var(--success);background:rgba(62,207,142,.06);margin-top:6px;font-size:11px">✓ Margem saudável acima do custo real.</div>`;
+    else alerta.innerHTML='';
+  }
+  el('orc-res-entrada').textContent=orcFmt(c.entrada);
+  el('orc-res-restante').textContent=orcFmt(c.restante);
+}
+
+window.orcToggleOutro=(campo)=>{
+  const sel=document.getElementById(`orc-${campo}`);
+  const inp=document.getElementById(`orc-${campo}_outro`);
+  if(inp) inp.style.display=sel&&sel.value==='outro'?'block':'none';
+  orcAtualizarResultado();
+};
+window.orcGetSelectLabel=(campo)=>{
+  const sel=document.getElementById(`orc-${campo}`);
+  if(!sel) return '—';
+  if(sel.value==='outro'){const inp=document.getElementById(`orc-${campo}_outro`);return inp&&inp.value.trim()?inp.value.trim():'Outro';}
+  return sel.options[sel.selectedIndex]?.text||'—';
+};
+
+window.orcRenderPavimentos=()=>{
+  const box=document.getElementById('orc-pavList'); if(!box) return;
+  if(orcPavimentos.length===0){box.innerHTML='<div style="font-size:12px;color:var(--muted);padding:8px 0">Nenhum pavimento.</div>';return;}
+  box.innerHTML=orcPavimentos.map((p,i)=>`
+    <div style="display:grid;grid-template-columns:140px 1fr ${p.tipo==='tipo'?'70px':''} 34px;gap:6px;align-items:center;margin-bottom:6px">
+      <select onchange="orcPavimentos[${i}].tipo=this.value;orcPavimentos[${i}].nome=this.options[this.selectedIndex].text;orcRenderPavimentos();orcAtualizarResultado()" style="font-size:12px;padding:7px 8px;background:var(--bg);border:1px solid var(--border2);color:var(--text);outline:none">
+        ${ORC_TIPOS_PAV.map(t=>`<option value="${t.value}" ${p.tipo===t.value?'selected':''}>${t.label}</option>`).join('')}
+      </select>
+      <div style="display:flex;align-items:center;gap:4px">
+        <input type="number" value="${p.area}" min="1"
+          style="width:100%;padding:7px 10px;font-family:'DM Mono',monospace;font-size:13px;background:var(--bg);border:1px solid var(--border2);color:var(--text);outline:none"
+          oninput="orcPavimentos[${i}].area=parseFloat(this.value)||0;orcAtualizarResultado()">
+        <span style="font-size:11px;color:var(--muted);flex-shrink:0">m²</span>
+      </div>
+      ${p.tipo==='tipo'?`<input type="number" value="${p.repeticoes||1}" min="1" max="50" title="Repetições"
+        style="padding:7px 6px;text-align:center;font-family:'DM Mono',monospace;font-size:13px;background:var(--bg);border:1px solid var(--border2);color:var(--text);outline:none"
+        oninput="orcPavimentos[${i}].repeticoes=parseInt(this.value)||1;orcAtualizarResultado()">`:``}
+      <button onclick="orcPavimentos.splice(${i},1);orcRenderPavimentos();orcAtualizarResultado()" style="background:none;border:1px solid var(--border2);color:var(--danger);cursor:pointer;font-size:13px;width:34px;height:34px">✕</button>
+    </div>`).join('');
+};
+
+window.orcAddPav=()=>{
+  orcPavimentos.push({tipo:'tipo',nome:'Pavimento Tipo',area:100,repeticoes:1});
+  orcRenderPavimentos(); orcAtualizarResultado();
+};
+
+window.orcRenderComplexidade=()=>{
+  const box=document.getElementById('orc-complexList'); if(!box) return;
+  box.innerHTML=orcComplexidade.map((c,i)=>`
+    <div style="display:grid;grid-template-columns:44px 1fr 70px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+      <input type="number" value="${c.qty}" min="0" max="20"
+        style="padding:5px 6px;text-align:center;font-family:'DM Mono',monospace;font-size:13px;background:var(--bg);border:1px solid var(--border2);color:var(--text);outline:none;width:100%"
+        oninput="orcComplexidade[${i}].qty=parseInt(this.value)||0;orcAtualizarResultado()">
+      <span style="font-size:12px;color:var(--muted2)">${c.label}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:11px;color:${c.qty>0?'var(--accent)':'var(--muted)'};text-align:right">${c.qty>0?`+${Math.round(c.qty*c.pct*100)}%`:`+${Math.round(c.pct*100)}%/un`}</span>
+    </div>`).join('');
+};
+
+window.orcRenderEscopo=(tipo)=>{
+  const lista=tipo==='incluso'?orcIncluso:orcExcluso;
+  const cor=tipo==='incluso'?'var(--success)':'var(--danger)';
+  const box=document.getElementById(`orc-escopo-${tipo}`); if(!box) return;
+  box.innerHTML=lista.map((item,i)=>`
+    <div onclick="orcToggleEscopo('${tipo}',${i})" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid ${item.on?cor:'var(--border2)'};background:${item.on?(tipo==='incluso'?'rgba(62,207,142,.05)':'rgba(224,82,82,.05)'):'transparent'};cursor:pointer;margin-bottom:4px;transition:all .15s">
+      <div style="width:14px;height:14px;border:1.5px solid ${item.on?cor:'var(--muted)'};border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;background:${item.on?cor:'transparent'};color:${tipo==='incluso'?'#000':'#fff'}">${item.on?'✓':''}</div>
+      <span style="font-size:12px;color:${item.on?'var(--text)':'var(--muted2)'};flex:1">${item.txt}</span>
+      <button onclick="event.stopPropagation();orcRemoveEscopo('${tipo}',${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:0 4px;opacity:0.6">✕</button>
+    </div>`).join('');
+};
+window.orcToggleEscopo=(tipo,i)=>{
+  const lista=tipo==='incluso'?orcIncluso:orcExcluso;
+  lista[i].on=!lista[i].on; orcRenderEscopo(tipo);
+};
+window.orcRemoveEscopo=(tipo,i)=>{
+  const lista=tipo==='incluso'?orcIncluso:orcExcluso;
+  lista.splice(i,1); orcRenderEscopo(tipo);
+};
+window.orcAddEscopo=(tipo)=>{
+  const inp=document.getElementById(`orc-novo-${tipo}`);
+  if(!inp||!inp.value.trim()) return;
+  const lista=tipo==='incluso'?orcIncluso:orcExcluso;
+  lista.push({txt:inp.value.trim(),on:true}); inp.value='';
+  orcRenderEscopo(tipo);
+};
+
+window.orcRenderCustosExtras=()=>{
+  const box=document.getElementById('orc-custosExtras'); if(!box) return;
+  box.innerHTML=orcCustosExtras.map((c,i)=>`
+    <div style="display:grid;grid-template-columns:1fr 130px 34px;gap:6px;align-items:center;margin-bottom:6px">
+      <input type="text" value="${c.nome}" placeholder="Descrição" style="font-size:13px;padding:7px 10px;background:var(--bg);border:1px solid var(--border2);color:var(--text);outline:none" oninput="orcCustosExtras[${i}].nome=this.value">
+      <input type="number" value="${c.valor}" min="0" style="padding:7px 10px;font-family:'DM Mono',monospace;font-size:13px;background:var(--bg);border:1px solid var(--border2);color:var(--text);outline:none" oninput="orcCustosExtras[${i}].valor=parseFloat(this.value)||0;orcAtualizarResultado()">
+      <button onclick="orcCustosExtras.splice(${i},1);orcRenderCustosExtras();orcAtualizarResultado()" style="background:none;border:1px solid var(--border2);color:var(--danger);cursor:pointer;font-size:13px;width:34px;height:34px">✕</button>
+    </div>`).join('');
+};
+
+window.orcToggleModo=()=>{
+  const porM2=document.getElementById('orc-modoPorM2').checked;
+  document.getElementById('orc-blocoPorM2').style.display=porM2?'block':'none';
+  document.getElementById('orc-blocoFixo').style.display=porM2?'none':'block';
+  orcAtualizarResultado();
+};
+
+function renderOrcamento(){
+  document.getElementById('topbarActions').innerHTML=`<button class="btn btn-primary" onclick="orcGerarPDF()">📄 Gerar Proposta PDF</button>`;
+
+  const hoje=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
+
+  // Preenche cliente se vier de um lead/cliente
+  const cliSugerido=window._orcClienteSugerido||'';
+
+  document.getElementById('mainContent').innerHTML=`
+  <div class="page" style="display:grid;grid-template-columns:1fr 320px;gap:0;max-width:100%;margin:0;padding:0">
+
+    <!-- COLUNA FORMULÁRIO -->
+    <div style="padding:20px 24px;overflow-y:auto;border-right:1px solid var(--border)">
+
+      <!-- 01 CLIENTE -->
+      <div style="margin-bottom:24px">
+        <div class="section-label" style="margin-bottom:12px">01 · Dados do Cliente</div>
+        <div class="card">
+          <div class="f-row">
+            <div class="f-group"><label>Nome do cliente *</label><input type="text" id="orc-cli-nome" value="${cliSugerido}" placeholder="Nome completo ou razão social" oninput="orcAtualizarResultado()"></div>
+            <div class="f-group"><label>Data da proposta</label><input type="text" id="orc-cli-data" value="${hoje}" oninput="orcAtualizarResultado()"></div>
+          </div>
+          <div class="f-row">
+            <div class="f-group"><label>WhatsApp</label><input type="text" id="orc-cli-whatsapp" placeholder="(88) 99999-9999"></div>
+            <div class="f-group"><label>E-mail</label><input type="text" id="orc-cli-email" placeholder="email@exemplo.com"></div>
+          </div>
+          <div class="f-row">
+            <div class="f-group"><label>Cidade / Obra</label><input type="text" id="orc-cli-cidade" placeholder="Ex: Russas — CE"></div>
+            <div class="f-group"><label>Validade da proposta</label>
+              <div style="display:flex;align-items:center;gap:6px"><input type="number" id="orc-cli-validade" value="15" min="1" style="flex:1"><span style="font-size:11px;color:var(--muted)">dias</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 02 SERVIÇO -->
+      <div style="margin-bottom:24px">
+        <div class="section-label" style="margin-bottom:12px">02 · Tipo de Serviço</div>
+        <div class="card">
+          <div class="f-row">
+            <div class="f-group"><label>Serviço *</label>
+              <select id="orc-servico" onchange="orcToggleOutro('servico');orcAtualizarResultado()">
+                <option value="projeto_completo">Projeto Estrutural Completo</option>
+                <option value="revisao">Revisão de Projeto</option>
+                <option value="consultoria">Consultoria / Laudo Técnico</option>
+                <option value="fundacoes">Projeto de Fundações</option>
+                <option value="muro">Muro / Contenção / Arrimo</option>
+                <option value="acompanhamento">Acompanhamento de Obra</option>
+                <option value="outro">Outro...</option>
+              </select>
+              <input type="text" id="orc-servico_outro" placeholder="Descreva o serviço..." oninput="orcAtualizarResultado()" style="display:none;margin-top:6px">
+            </div>
+            <div class="f-group"><label>Tipologia</label>
+              <select id="orc-tipologia" onchange="orcToggleOutro('tipologia');orcAtualizarResultado()">
+                <option value="residencial">Residencial Unifamiliar</option>
+                <option value="residencial_multi">Residencial Multifamiliar</option>
+                <option value="comercial">Comercial / Corporativo</option>
+                <option value="industrial">Industrial / Galpão</option>
+                <option value="reforma">Reforma / Ampliação</option>
+                <option value="muro_cont">Muro / Contenção</option>
+                <option value="outro">Outro...</option>
+              </select>
+              <input type="text" id="orc-tipologia_outro" placeholder="Descreva a tipologia..." oninput="orcAtualizarResultado()" style="display:none;margin-top:6px">
+            </div>
+          </div>
+          <div class="f-group"><label>Sistema estrutural</label>
+            <select id="orc-sistema" onchange="orcToggleOutro('sistema');orcAtualizarResultado()">
+              <option value="concreto">Concreto Armado (convencional)</option>
+              <option value="concreto_pre">Concreto Armado (pré-moldado)</option>
+              <option value="metalica">Estrutura Metálica</option>
+              <option value="alvenaria">Alvenaria Estrutural</option>
+              <option value="mista">Estrutura Mista</option>
+              <option value="outro">Outro...</option>
+            </select>
+            <input type="text" id="orc-sistema_outro" placeholder="Descreva o sistema..." oninput="orcAtualizarResultado()" style="display:none;margin-top:6px">
+          </div>
+        </div>
+      </div>
+
+      <!-- 03 PAVIMENTOS -->
+      <div style="margin-bottom:24px">
+        <div class="section-label" style="margin-bottom:12px">03 · Pavimentos e Áreas</div>
+        <div class="card">
+          <div id="orc-pavList"></div>
+          <button class="btn btn-ghost btn-sm" onclick="orcAddPav()" style="margin-top:8px;width:100%;border-style:dashed">+ Adicionar pavimento</button>
+          <div class="info-box" style="margin-top:12px;font-size:11px">
+            <strong>Fator de repetição (Kleber Amado):</strong> Pavimentos tipo repetidos = 1ª vez completo + demais com desconto
+          </div>
+          <div style="margin-top:12px">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+              <span style="font-size:13px;color:var(--muted2)">Tem pavimento tipo (repetição)?</span>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input type="checkbox" id="orc-temTipo" checked onchange="orcToggleTipo()" style="accent-color:var(--accent);width:15px;height:15px">
+                <span style="font-size:11px;color:var(--muted)">Sim</span>
+              </label>
+            </div>
+            <div id="orc-tipoConfig" style="margin-top:10px">
+              <div class="f-group">
+                <label>Fator de repetição</label>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <input type="range" id="orc-fatRep" min="15" max="30" value="25" step="1"
+                    oninput="document.getElementById('orc-fatRep-val').textContent=this.value+'%';orcAtualizarResultado()"
+                    style="flex:1;height:4px;accent-color:var(--accent)">
+                  <span id="orc-fatRep-val" style="font-family:'DM Mono',monospace;font-size:13px;color:var(--accent);min-width:36px">25%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 04 PRECIFICAÇÃO -->
+      <div style="margin-bottom:24px">
+        <div class="section-label" style="margin-bottom:12px">04 · Precificação</div>
+        <div class="card">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:14px">
+            <span style="font-size:13px;color:var(--muted2)">Calcular por m² (área equivalente)</span>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+              <input type="checkbox" id="orc-modoPorM2" checked onchange="orcToggleModo()" style="accent-color:var(--accent);width:15px;height:15px">
+            </label>
+          </div>
+          <div id="orc-blocoPorM2">
+            <div class="f-row">
+              <div class="f-group"><label>Valor por m² (R$)</label>
+                <input type="number" id="orc-valorM2" value="15" min="1" step="0.5" oninput="orcAtualizarResultado()" style="font-family:'DM Mono',monospace">
+                <div style="font-size:10px;color:var(--muted);margin-top:3px;font-family:'DM Mono',monospace">Residencial: R$ 12–22/m²</div>
+              </div>
+              <div class="f-group"><label>Custo/hora real (R$)</label>
+                <input type="number" id="orc-custoHora" value="85" min="1" oninput="orcAtualizarResultado()" style="font-family:'DM Mono',monospace">
+              </div>
+            </div>
+            <div class="f-row">
+              <div class="f-group"><label>Dias estimados</label>
+                <input type="number" id="orc-dias" value="20" min="1" oninput="orcAtualizarResultado()" style="font-family:'DM Mono',monospace">
+              </div>
+              <div class="f-group"><label>Horas/dia</label>
+                <input type="number" id="orc-horas" value="6" min="1" max="12" step="0.5" oninput="orcAtualizarResultado()" style="font-family:'DM Mono',monospace">
+              </div>
+            </div>
+          </div>
+          <div id="orc-blocoFixo" style="display:none">
+            <div class="f-group"><label>Valor fixo (R$)</label>
+              <input type="number" id="orc-valorFixo" value="0" min="0" oninput="orcAtualizarResultado()" style="font-family:'DM Mono',monospace">
+            </div>
+          </div>
+          <div class="f-group" style="margin-top:8px">
+            <label>Margem de negociação (pulmão)</label>
+            <div style="display:flex;align-items:center;gap:10px">
+              <input type="range" id="orc-margem" min="0" max="20" value="10" step="1"
+                oninput="document.getElementById('orc-margem-val').textContent=this.value+'%';orcAtualizarResultado()"
+                style="flex:1;height:4px;accent-color:var(--accent)">
+              <span id="orc-margem-val" style="font-family:'DM Mono',monospace;font-size:13px;color:var(--accent);min-width:36px">10%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 04b COMPLEXIDADE -->
+      <div style="margin-bottom:24px">
+        <div class="section-label" style="margin-bottom:12px">04b · Complexidade Estrutural <span style="font-size:10px;font-weight:400;color:var(--muted)">(Waltner Wagner)</span></div>
+        <div class="card">
+          <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:8px;letter-spacing:.08em">QTD · ELEMENTO · ACRÉSCIMO</div>
+          <div id="orc-complexList"></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;margin-top:4px;border-top:1px solid var(--border)">
+            <span style="font-size:12px;color:var(--muted2)">Total acréscimo complexidade</span>
+            <span id="orc-complexTotal" style="font-family:'DM Mono',monospace;font-size:13px;color:var(--accent);font-weight:700">+ 0%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 05 CUSTOS ADICIONAIS -->
+      <div style="margin-bottom:24px">
+        <div class="section-label" style="margin-bottom:12px">05 · Custos Adicionais</div>
+        <div class="card">
+          ${[
+            ['orc-artAtivo','ART / RRT','orc-art','150',true,''],
+            ['orc-impressaoAtivo','Impressão / Plotagem','orc-impressao','80',false,''],
+            ['orc-deslocAtivo','Deslocamento','orc-desloc','0',false,''],
+          ].map(([tid,tlabel,vid,tval,ton,_])=>`
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:13px;color:var(--muted2)">${tlabel}</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <input type="number" id="${vid}" value="${tval}" min="0" style="width:100px;padding:5px 8px;font-family:'DM Mono',monospace;font-size:12px;background:var(--bg);border:1px solid var(--border2);color:var(--text);outline:none" oninput="orcAtualizarResultado()">
+              <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+                <input type="checkbox" id="${tid}" ${ton?'checked':''} onchange="orcAtualizarResultado()" style="accent-color:var(--accent);width:14px;height:14px">
+              </label>
+            </div>
+          </div>`).join('')}
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:13px;color:var(--muted2)">Visitas à obra</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              <input type="number" id="orc-nVisitas" value="2" min="0" style="width:44px;padding:5px 6px;text-align:center;font-family:'DM Mono',monospace;font-size:12px;background:var(--bg);border:1px solid var(--border2);color:var(--text);outline:none" oninput="orcAtualizarResultado()">
+              <span style="font-size:11px;color:var(--muted)">×</span>
+              <input type="number" id="orc-vlrVisita" value="100" min="0" style="width:80px;padding:5px 8px;font-family:'DM Mono',monospace;font-size:12px;background:var(--bg);border:1px solid var(--border2);color:var(--text);outline:none" oninput="orcAtualizarResultado()">
+              <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+                <input type="checkbox" id="orc-visitaAtivo" checked onchange="orcAtualizarResultado()" style="accent-color:var(--accent);width:14px;height:14px">
+              </label>
+            </div>
+          </div>
+          <div id="orc-custosExtras" style="margin-top:8px"></div>
+          <button class="btn btn-ghost btn-sm" onclick="orcCustosExtras.push({nome:'',valor:0,ativo:true});orcRenderCustosExtras();orcAtualizarResultado()" style="width:100%;border-style:dashed;margin-top:6px">+ Custo extra</button>
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div>
+                <span style="font-size:13px;color:var(--muted2)">Impostos / Tributos</span>
+                <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">ISS, Simples, INSS, IR...</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <input type="number" id="orc-impostoPct" value="6" min="0" max="100" step="0.5" style="width:60px;padding:5px 8px;font-family:'DM Mono',monospace;font-size:12px;background:var(--bg);border:1px solid var(--border2);color:var(--text);outline:none" oninput="orcAtualizarResultado()">
+                <span style="font-size:11px;color:var(--muted)">%</span>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+                  <input type="checkbox" id="orc-impostoAtivo" onchange="orcAtualizarResultado()" style="accent-color:var(--accent);width:14px;height:14px">
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 06 CONDIÇÕES -->
+      <div style="margin-bottom:24px">
+        <div class="section-label" style="margin-bottom:12px">06 · Condições e Prazo</div>
+        <div class="card">
+          <div class="f-row">
+            <div class="f-group"><label>Prazo de entrega (dias)</label>
+              <input type="number" id="orc-prazo" value="30" min="1" style="font-family:'DM Mono',monospace">
+            </div>
+            <div class="f-group"><label>Forma de pagamento</label>
+              <select id="orc-forma">
+                <option value="50_50">50% entrada + 50% entrega</option>
+                <option value="30_70">30% entrada + 70% entrega</option>
+                <option value="100_entrega">100% na entrega</option>
+                <option value="100_inicio">100% na assinatura</option>
+                <option value="parcelado">Parcelado em 3×</option>
+              </select>
+            </div>
+          </div>
+          <div class="f-row">
+            <div class="f-group"><label>Entrada mínima (R$)</label>
+              <input type="number" id="orc-entradaMin" value="0" min="0" oninput="orcAtualizarResultado()" style="font-family:'DM Mono',monospace">
+            </div>
+          </div>
+          <div class="f-group"><label>Observações / condições especiais</label>
+            <textarea id="orc-obs" rows="3" style="resize:vertical">Prazo sujeito a alteração caso o projeto arquitetônico seja modificado após o início dos serviços.</textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- 07 ESCOPO -->
+      <div style="margin-bottom:24px">
+        <div class="section-label" style="margin-bottom:12px">07 · Escopo</div>
+        <div class="card">
+          <div style="margin-bottom:16px">
+            <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--success);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">✓ Incluso</div>
+            <div id="orc-escopo-incluso"></div>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <input type="text" id="orc-novo-incluso" placeholder="Adicionar item incluso..." style="flex:1;font-size:12px;padding:7px 10px"
+                onkeydown="if(event.key==='Enter'){orcAddEscopo('incluso');event.preventDefault()}">
+              <button class="btn btn-ghost btn-sm" onclick="orcAddEscopo('incluso')">+ Add</button>
+            </div>
+          </div>
+          <div style="border-top:1px solid var(--border);padding-top:14px">
+            <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--danger);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">✕ Não incluso</div>
+            <div id="orc-escopo-excluso"></div>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <input type="text" id="orc-novo-excluso" placeholder="Adicionar item não incluso..." style="flex:1;font-size:12px;padding:7px 10px"
+                onkeydown="if(event.key==='Enter'){orcAddEscopo('excluso');event.preventDefault()}">
+              <button class="btn btn-ghost btn-sm" onclick="orcAddEscopo('excluso')">+ Add</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- fim coluna form -->
+
+    <!-- COLUNA RESULTADO -->
+    <div style="padding:20px;background:var(--surface);position:sticky;top:0;height:calc(100vh - 56px);overflow-y:auto;display:flex;flex-direction:column;gap:12px">
+
+      <div>
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px">Valor da Proposta</div>
+        <div id="orc-res-total" style="font-family:'Bebas Neue',sans-serif;font-size:42px;color:var(--accent);line-height:1">R$ 0</div>
+        <div id="orc-res-porm2" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)">—</div>
+      </div>
+
+      <div style="height:1px;background:var(--border)"></div>
+
+      <div>
+        <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px">Área</div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted2)">Área equivalente total</span>
+          <span id="orc-res-areaEquiv" style="font-family:'DM Mono',monospace;color:var(--accent)">0 m²</span>
+        </div>
+      </div>
+
+      <div style="height:1px;background:var(--border)"></div>
+
+      <div>
+        <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px">Composição</div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted2)">Valor base</span>
+          <span id="orc-res-base" style="font-family:'DM Mono',monospace">R$ 0</span>
+        </div>
+        <div id="orc-res-complex-row" style="display:none;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--border)"></div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted2)">Margem</span>
+          <span id="orc-res-margem" style="font-family:'DM Mono',monospace">+ R$ 0</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted2)">Custos adicionais</span>
+          <span id="orc-res-custos" style="font-family:'DM Mono',monospace">+ R$ 0</span>
+        </div>
+        <div id="orc-res-imposto-row" style="display:none;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--border)"></div>
+      </div>
+
+      <div style="height:1px;background:var(--border)"></div>
+
+      <div>
+        <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px">Verificação Hora</div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted2)">Total horas</span>
+          <span id="orc-res-horas" style="font-family:'DM Mono',monospace">0h</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted2)">Remuneração/h</span>
+          <span id="orc-res-remhora" style="font-family:'DM Mono',monospace">R$ 0/h</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted2)">Seu custo/h</span>
+          <span id="orc-res-custo" style="font-family:'DM Mono',monospace;color:var(--muted)">R$ 0/h</span>
+        </div>
+        <div id="orc-res-alerta"></div>
+      </div>
+
+      <div style="height:1px;background:var(--border)"></div>
+
+      <div>
+        <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px">Pagamento</div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted2)">Entrada</span>
+          <span id="orc-res-entrada" style="font-family:'DM Mono',monospace;color:var(--success)">R$ 0</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0">
+          <span style="color:var(--muted2)">Na entrega</span>
+          <span id="orc-res-restante" style="font-family:'DM Mono',monospace">R$ 0</span>
+        </div>
+      </div>
+
+      <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px">
+        <button class="btn btn-primary" onclick="orcGerarPDF()" style="width:100%;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:.05em;padding:14px;gap:8px">
+          📄 GERAR PROPOSTA PDF
+        </button>
+        <button class="btn btn-ghost" onclick="orcReset()" style="width:100%;font-size:12px">↺ Limpar</button>
+      </div>
+
+    </div><!-- fim coluna resultado -->
+  </div>`;
+
+  // Inicializa componentes
+  orcRenderPavimentos();
+  orcRenderComplexidade();
+  orcRenderEscopo('incluso');
+  orcRenderEscopo('excluso');
+  orcRenderCustosExtras();
+  setTimeout(orcAtualizarResultado, 50);
+
+  // Listeners extras
+  document.getElementById('orc-forma').addEventListener('change', orcAtualizarResultado);
+  document.getElementById('orc-prazo').addEventListener('input', orcAtualizarResultado);
+}
+
+window.orcToggleTipo=()=>{
+  const t=document.getElementById('orc-temTipo')?.checked;
+  const box=document.getElementById('orc-tipoConfig');
+  if(box) box.style.display=t?'block':'none';
+  orcAtualizarResultado();
+};
+
+window.orcReset=()=>{
+  if(!confirm('Limpar todos os dados do orçamento?')) return;
+  orcPavimentos=[{tipo:'terreo',nome:'Térreo',area:150},{tipo:'tipo',nome:'Pavimento Tipo',area:150,repeticoes:2},{tipo:'cobertura',nome:'Cobertura',area:150}];
+  orcComplexidade=ORC_COMPLEXIDADE.map(c=>({...c}));
+  orcIncluso=ORC_INCLUSO_DEFAULT.map(i=>({...i}));
+  orcExcluso=ORC_EXCLUSO_DEFAULT.map(i=>({...i}));
+  orcCustosExtras=[];
+  window._orcClienteSugerido='';
+  renderOrcamento();
+};
+
+window.orcGerarPDF=async()=>{
+  const nomeEl=document.getElementById('orc-cli-nome');
+  if(!nomeEl||!nomeEl.value.trim()){alert('Informe o nome do cliente antes de gerar.');return;}
+
+  const c=orcCalc();
+  const formaLabels={'50_50':'50% na assinatura + 50% na entrega','30_70':'30% na assinatura + 70% na entrega','100_entrega':'100% na entrega','100_inicio':'100% na assinatura','parcelado':'Parcelado em 3× iguais'};
+  const forma=document.getElementById('orc-forma')?.value||'50_50';
+
+  const dados={
+    cliente:{
+      nome:document.getElementById('orc-cli-nome').value,
+      whatsapp:document.getElementById('orc-cli-whatsapp').value,
+      email:document.getElementById('orc-cli-email').value,
+      cidade:document.getElementById('orc-cli-cidade').value,
+      data:document.getElementById('orc-cli-data').value,
+    },
+    servico:{
+      tipoLabel:orcGetSelectLabel('servico'),
+      tipologia:orcGetSelectLabel('tipologia'),
+      sistema:orcGetSelectLabel('sistema'),
+    },
+    pavimentos:orcPavimentos,
+    calculo:{
+      areaEquiv:c.areaEquiv,
+      detalhes:c.detalhes,
+      valorBase:c.valorBase,
+      complexPct:c.complexPct,
+      complexVal:c.complexVal,
+      complexItens:orcComplexidade.filter(x=>x.qty>0).map(x=>({label:x.label,qty:x.qty,pct:Math.round(x.qty*x.pct*100)})),
+      margemVal:c.margemVal,
+      margem:parseInt(document.getElementById('orc-margem')?.value||10),
+      custos:c.custos,
+      impostoVal:c.impostoVal,
+      impostoPct:c.impostoPct,
+      impostoAtivo:c.impostoAtivo,
+      total:c.total,
+      totalHoras:c.totalHoras,
+      remHora:c.remHora,
+    },
+    condicoes:{
+      prazoEntrega:document.getElementById('orc-prazo')?.value||'30',
+      validadeProp:document.getElementById('orc-cli-validade')?.value||'15',
+      formaPgto:formaLabels[forma]||forma,
+      entrada:c.entrada,
+      restante:c.restante,
+      obs:document.getElementById('orc-obs')?.value||'',
+    },
+    escopo:{
+      incluso:orcIncluso.filter(i=>i.on).map(i=>i.txt).join('\n'),
+      excluso:orcExcluso.filter(i=>i.on).map(i=>i.txt).join('\n'),
+    },
+    engenheiro:{
+      nome:'Emanuel Freire Gonçalves',
+      titulo:'Engenheiro Civil',
+      crea:'CREA/CE',
+      whatsapp:'(88) 99904-0110',
+      email:'emanuelfreire.eng@gmail.com',
+    },
+  };
+
+  // Tenta servidor local; se falhar, gera PDF no browser via jsPDF
+  try {
+    const resp=await Promise.race([
+      fetch('http://localhost:5000/gerar-pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(dados)}),
+      new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),3000))
+    ]);
+    if(resp.ok){
+      const blob=await resp.blob();
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=url;
+      a.download=`Proposta_${dados.cliente.nome.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.pdf`;
+      a.click(); URL.revokeObjectURL(url);
+      return;
+    }
+  } catch(e){}
+
+  // Fallback: abrir janela de impressão HTML formatada
+  orcGerarPDFBrowser(dados);
+};
+
+function orcGerarPDFBrowser(dados){
+  const cli=dados.cliente; const srv=dados.servico; const calc=dados.calculo;
+  const cond=dados.condicoes; const esc=dados.escopo; const eng=dados.engenheiro;
+  const fmtBRL=v=>'R$ '+(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const fmtM2=v=>(v||0).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+' m²';
+
+  const incItems=(esc.incluso||'').split('\n').filter(Boolean).map(t=>`<li>${t}</li>`).join('');
+  const excItems=(esc.excluso||'').split('\n').filter(Boolean).map(t=>`<li>${t}</li>`).join('');
+  const pavRows=(calc.detalhes||[]).map(d=>`<tr><td>${d.nome}</td><td>${fmtM2(d.area)}</td><td style="color:#8a9ab2">${d.fator}</td><td style="color:#e85d20;font-weight:700">${fmtM2(d.equiv)}</td></tr>`).join('');
+
+  const html=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+  <title>Proposta — ${cli.nome}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:10pt;color:#1a1a2e;background:#fff;}
+    .header{background:#0a0e1a;color:#fff;padding:24px 32px;display:flex;justify-content:space-between;align-items:center;}
+    .header-left .badge{font-size:7pt;letter-spacing:.15em;color:#e85d20;text-transform:uppercase;margin-bottom:6px;}
+    .header-left h1{font-size:20pt;font-weight:900;letter-spacing:.04em;}
+    .header-left .para{font-size:10pt;color:#ccc;margin-top:6px;}
+    .header-left .srv{font-size:8.5pt;color:#8a9ab2;margin-top:3px;}
+    .header-right{text-align:right;}
+    .header-right .vl{font-size:7pt;letter-spacing:.1em;color:#8a9ab2;text-transform:uppercase;}
+    .header-right .total{font-size:20pt;font-weight:900;color:#e85d20;}
+    .header-right .dt{font-size:7.5pt;color:#8a9ab2;margin-top:4px;}
+    .body{padding:24px 32px;}
+    .sec-title{font-size:7.5pt;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:#e85d20;border-bottom:1.5px solid #e85d20;padding-bottom:4px;margin:20px 0 10px;}
+    table{width:100%;border-collapse:collapse;}
+    th{background:#0a0e1a;color:#fff;font-size:7.5pt;padding:6px 8px;text-align:left;letter-spacing:.05em;}
+    td{font-size:9pt;padding:6px 8px;border-bottom:1px solid #eee;}
+    tr:nth-child(even) td{background:#f8f9fc;}
+    .total-row td{background:#0a0e1a!important;color:#fff;font-weight:700;}
+    .total-row td:last-child{color:#e85d20;font-size:11pt;}
+    .valor-box{background:#0a0e1a;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;}
+    .valor-box .lbl{font-size:8pt;letter-spacing:.12em;color:#8a9ab2;text-transform:uppercase;}
+    .valor-box .val{font-size:20pt;font-weight:900;color:#e85d20;}
+    .pgto-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0;}
+    .pgto-hdr{background:#0a0e1a;color:#fff;font-size:7.5pt;padding:7px 10px;font-weight:700;}
+    .pgto-val{background:#f8f9fc;font-size:9pt;padding:7px 10px;}
+    .pgto-val.entrada{color:#1a7a50;font-weight:700;}
+    .escopo-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    .escopo-col{padding:10px 14px;}
+    .escopo-col.inc{background:#f0faf5;border:1px solid #1a7a50;}
+    .escopo-col.exc{background:#fdf5f5;border:1px solid #c0392b;}
+    .escopo-col h4{font-size:7.5pt;letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px;}
+    .escopo-col.inc h4{color:#1a7a50;}
+    .escopo-col.exc h4{color:#c0392b;}
+    .escopo-col ul{padding-left:14px;}
+    .escopo-col li{font-size:9pt;margin-bottom:4px;line-height:1.5;}
+    .obs{background:#fff3ee;border-left:3px solid #e85d20;padding:8px 12px;font-size:8.5pt;color:#5a6a82;margin-top:8px;}
+    .obs-list li{font-size:8.5pt;margin-bottom:4px;line-height:1.6;}
+    .sign{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:24px;}
+    .sign-col{border-top:2px solid #e85d20;padding-top:10px;}
+    .sign-col.client{border-top-color:#dde2ec;}
+    .sign-col .name{font-size:10.5pt;font-weight:700;}
+    .sign-col .info{font-size:8pt;color:#5a6a82;margin-top:2px;}
+    .footer{background:#0a0e1a;padding:8px 32px;display:flex;justify-content:space-between;font-size:7pt;color:#8a9ab2;margin-top:24px;}
+    @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
+  </style></head><body>
+  <div class="header">
+    <div class="header-left">
+      <div class="badge">Proposta de Serviços de Engenharia Estrutural</div>
+      <h1>ENGENHARIA ESTRUTURAL</h1>
+      <div class="para">Para: <strong>${cli.nome}</strong></div>
+      <div class="srv">${srv.tipoLabel}  ·  ${srv.tipologia}</div>
+    </div>
+    <div class="header-right">
+      <div class="vl">Valor Total</div>
+      <div class="total">${fmtBRL(calc.total)}</div>
+      <div class="dt">Data: ${cli.data}</div>
+      <div class="dt">Válida por ${cond.validadeProp} dias</div>
+    </div>
+  </div>
+  <div class="body">
+    <div class="sec-title">01 · Dados do Cliente</div>
+    <table><tr><td style="width:110px;color:#5a6a82;font-size:8pt">Nome</td><td>${cli.nome}</td>
+    ${cli.cidade?`<td style="width:110px;color:#5a6a82;font-size:8pt">Cidade / Obra</td><td>${cli.cidade}</td>`:'<td></td><td></td>'}</tr>
+    ${cli.whatsapp?`<tr><td style="color:#5a6a82;font-size:8pt">WhatsApp</td><td>${cli.whatsapp}</td><td style="color:#5a6a82;font-size:8pt">E-mail</td><td>${cli.email||'—'}</td></tr>`:''}
+    </table>
+
+    <div class="sec-title">02 · Serviço e Composição da Obra</div>
+    <table><tr><th>Serviço</th><th>Tipologia</th><th>Sistema Estrutural</th></tr>
+    <tr><td>${srv.tipoLabel}</td><td>${srv.tipologia}</td><td>${srv.sistema}</td></tr></table>
+    ${pavRows?`<br><table><tr><th>Pavimento</th><th>Área Bruta</th><th>Fator</th><th>Área Equivalente</th></tr>${pavRows}<tr class="total-row"><td colspan="3">ÁREA TOTAL EQUIVALENTE</td><td>${fmtM2(calc.areaEquiv)}</td></tr></table>`:''}
+
+    <div class="sec-title">03 · Valor da Proposta</div>
+    <div class="valor-box"><span class="lbl">Valor Total da Proposta</span><span class="val">${fmtBRL(calc.total)}</span></div>
+
+    <div class="sec-title">04 · Condições de Pagamento</div>
+    <div class="pgto-grid">
+      <div class="pgto-hdr">Forma de Pagamento</div><div class="pgto-hdr">Entrada</div><div class="pgto-hdr">Na Entrega</div><div class="pgto-hdr">Prazo</div>
+      <div class="pgto-val">${cond.formaPgto}</div>
+      <div class="pgto-val entrada">${fmtBRL(cond.entrada)}</div>
+      <div class="pgto-val">${fmtBRL(cond.restante)}</div>
+      <div class="pgto-val">${cond.prazoEntrega} dias corridos</div>
+    </div>
+    ${cond.obs?`<div class="obs">${cond.obs}</div>`:''}
+
+    <div class="sec-title">05 · O Que Está Incluso na Proposta</div>
+    <div class="escopo-grid">
+      <div class="escopo-col inc"><h4>✓ Incluso</h4><ul>${incItems}</ul></div>
+      <div class="escopo-col exc"><h4>✕ Não incluso</h4><ul>${excItems}</ul></div>
+    </div>
+
+    <div class="sec-title">06 · Observações Importantes</div>
+    <ul class="obs-list" style="padding-left:16px">
+      <li>As condições desta proposta foram elaboradas com base nas informações fornecidas. Alterações no projeto arquitetônico após o início dos serviços poderão implicar revisão do valor e/ou prazo.</li>
+      <li>Revisões adicionais após entrega do projeto executivo serão cobradas separadamente.</li>
+      <li>O prazo inicia-se após recebimento da entrada e de todos os documentos necessários.</li>
+      <li>Esta proposta é válida por <strong>${cond.validadeProp} dias</strong> a partir da data de emissão.</li>
+    </ul>
+
+    <div class="sign">
+      <div class="sign-col">
+        <div class="name">${eng.nome}</div>
+        <div class="info">${eng.titulo}  ·  ${eng.crea} nº 375379</div>
+        <div class="info" style="margin-top:4px">${eng.whatsapp}  ·  ${eng.email}</div>
+      </div>
+      <div class="sign-col client">
+        <div style="height:28px"></div>
+        <div style="border-top:0.5px solid #dde2ec;padding-top:6px;font-size:8pt;color:#5a6a82">${cli.nome}  ·  Data: ___/___/______</div>
+        <div style="font-size:7.5pt;color:#8a9ab2;margin-top:2px">Aceite do Contratante</div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">
+    <span>Proposta emitida em ${cli.data}  ·  ${eng.nome}  ·  ${eng.crea} nº 375379  ·  ${eng.email}</span>
+    <span>Pág. 1</span>
+  </div>
+  <script>window.onload=()=>{window.print();}<\/script>
+  </body></html>`;
+
+  const win=window.open('','_blank');
+  win.document.write(html);
+  win.document.close();
+}
+
 function renderAgenda(){
   document.getElementById('topbarActions').innerHTML=`<button class="btn btn-primary" onclick="openNovaAgenda()">+ Novo Compromisso</button>`;
   const agenda=cache.agenda;
