@@ -2435,108 +2435,177 @@ let orcCustosExtras=[];
 function orcFmt(v){return'R$ '+(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function orcFmtM2(v){return(v||0).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+' m²';}
 
+function orcVal(id, def=0){
+  const el=document.getElementById(id);
+  if(!el) return def;
+  const v=parseFloat(el.value);
+  return isNaN(v)?def:v;
+}
+function orcInt(id, def=0){
+  const el=document.getElementById(id);
+  if(!el) return def;
+  const v=parseInt(el.value);
+  return isNaN(v)?def:v;
+}
+function orcChecked(id, def=false){
+  const el=document.getElementById(id);
+  return el?el.checked:def;
+}
+
 function orcCalcAreaEquiv(){
-  const temTipo=document.getElementById('orc-temTipo')?.checked??true;
-  const fatRep=(parseInt(document.getElementById('orc-fatRep')?.value||25))/100;
-  let areaEquiv=0; const detalhes=[];
+  const temTipo=orcChecked('orc-temTipo', true);
+  const fatRep=orcInt('orc-fatRep', 25)/100;
+  let areaEquiv=0;
+  const detalhes=[];
   orcPavimentos.forEach(p=>{
     const area=p.area||0;
-    if(p.tipo==='tipo'&&temTipo){
+    if(p.tipo==='tipo' && temTipo){
       const rep=p.repeticoes||1;
-      const equiv=area+(rep-1)*area*(1+fatRep);
-      detalhes.push({nome:`Pav. Tipo (${rep}×)`,area,fator:`1 + ${rep-1}×(1+${Math.round(fatRep*100)}%)`,equiv});
+      // 1ª vez completa + restantes com fator
+      const equiv = rep===1 ? area : area + (rep-1)*area*(1+fatRep);
+      detalhes.push({
+        nome:`Pav. Tipo (${rep}×)`,
+        area,
+        fator: rep===1 ? '1×' : `1 + ${rep-1}×(1+${Math.round(fatRep*100)}%)`,
+        equiv
+      });
       areaEquiv+=equiv;
     } else {
-      detalhes.push({nome:p.nome||p.tipo,area,fator:'1×',equiv:area});
+      detalhes.push({nome:p.nome||p.tipo, area, fator:'1×', equiv:area});
       areaEquiv+=area;
     }
   });
-  return {areaEquiv,detalhes};
+  return {areaEquiv, detalhes};
 }
 
 function orcCalc(){
-  const {areaEquiv,detalhes}=orcCalcAreaEquiv();
-  const porM2=document.getElementById('orc-modoPorM2')?.checked??true;
-  const margem=(parseInt(document.getElementById('orc-margem')?.value||10))/100;
-  const custoHora=parseFloat(document.getElementById('orc-custoHora')?.value||85);
-  const dias=parseInt(document.getElementById('orc-dias')?.value||20)||1;
-  const horas=parseFloat(document.getElementById('orc-horas')?.value||6)||1;
+  const {areaEquiv, detalhes}=orcCalcAreaEquiv();
 
+  // Modo de cálculo
+  const porM2=orcChecked('orc-modoPorM2', true);
   let valorBase=0;
-  if(porM2) valorBase=areaEquiv*(parseFloat(document.getElementById('orc-valorM2')?.value||15)||0);
-  else valorBase=parseFloat(document.getElementById('orc-valorFixo')?.value||0)||0;
+  if(porM2){
+    const vM2=orcVal('orc-valorM2', 15);
+    valorBase=areaEquiv*vM2;
+  } else {
+    valorBase=orcVal('orc-valorFixo', 0);
+  }
 
-  const complexPct=orcComplexidade.reduce((s,c)=>s+(c.qty*c.pct),0);
+  // Complexidade (Waltner Wagner) — acréscimo sobre valor base
+  const complexPct=orcComplexidade.reduce((s,c)=>s+(c.qty*c.pct), 0);
   const complexVal=valorBase*complexPct;
   const valorComComplex=valorBase+complexVal;
-  const margemVal=valorComComplex*margem;
+
+  // Margem de negociação (pulmão)
+  const margemPct=orcInt('orc-margem', 10)/100;
+  const margemVal=valorComComplex*margemPct;
   const valorComMargem=valorComComplex+margemVal;
 
+  // Custos adicionais
   let custos=0;
-  if(document.getElementById('orc-artAtivo')?.checked) custos+=parseFloat(document.getElementById('orc-art')?.value||0)||0;
-  if(document.getElementById('orc-visitaAtivo')?.checked) custos+=(parseInt(document.getElementById('orc-nVisitas')?.value||0)||0)*(parseFloat(document.getElementById('orc-vlrVisita')?.value||0)||0);
-  if(document.getElementById('orc-impressaoAtivo')?.checked) custos+=parseFloat(document.getElementById('orc-impressao')?.value||0)||0;
-  if(document.getElementById('orc-deslocAtivo')?.checked) custos+=parseFloat(document.getElementById('orc-desloc')?.value||0)||0;
-  orcCustosExtras.forEach(c=>{if(c.ativo)custos+=c.valor||0;});
+  if(orcChecked('orc-artAtivo'))       custos+=orcVal('orc-art', 0);
+  if(orcChecked('orc-visitaAtivo'))    custos+=orcInt('orc-nVisitas',0)*orcVal('orc-vlrVisita',0);
+  if(orcChecked('orc-impressaoAtivo')) custos+=orcVal('orc-impressao', 0);
+  if(orcChecked('orc-deslocAtivo'))    custos+=orcVal('orc-desloc', 0);
+  orcCustosExtras.forEach(c=>{ if(c.ativo) custos+=c.valor||0; });
 
-  const impostoPct=parseFloat(document.getElementById('orc-impostoPct')?.value||6)||0;
-  const impostoAtivo=document.getElementById('orc-impostoAtivo')?.checked??false;
-  const impostoVal=impostoAtivo?valorComMargem*(impostoPct/100):0;
+  // Impostos — incidem sobre valorComMargem (antes dos custos fixos)
+  const impostoAtivo=orcChecked('orc-impostoAtivo', false);
+  const impostoPct=orcVal('orc-impostoPct', 6);
+  const impostoVal=impostoAtivo ? valorComMargem*(impostoPct/100) : 0;
 
+  // Total final
   const total=valorComMargem+custos+impostoVal;
+
+  // Verificação custo/hora
+  const custoHora=orcVal('orc-custoHora', 85);
+  const dias=orcInt('orc-dias', 20)||1;
+  const horas=orcVal('orc-horas', 6)||1;
   const totalHoras=dias*horas;
-  const remHora=totalHoras>0?valorComMargem/totalHoras:0;
+  const remHora=totalHoras>0 ? valorComMargem/totalHoras : 0;
 
+  // Forma de pagamento
   const forma=document.getElementById('orc-forma')?.value||'50_50';
-  let entrada=0,restante=total;
-  if(forma==='50_50'){entrada=total*0.5;restante=total*0.5;}
-  else if(forma==='30_70'){entrada=total*0.3;restante=total*0.7;}
-  else if(forma==='100_entrega'){entrada=0;restante=total;}
-  else if(forma==='100_inicio'){entrada=total;restante=0;}
-  else if(forma==='parcelado'){entrada=total/3;restante=total*2/3;}
-  const entMin=parseFloat(document.getElementById('orc-entradaMin')?.value||0)||0;
-  if(entMin>entrada){entrada=entMin;restante=total-entrada;}
+  const formaLabels={
+    '50_50':'50% na assinatura + 50% na entrega',
+    '30_70':'30% na assinatura + 70% na entrega',
+    '100_entrega':'100% na entrega',
+    '100_inicio':'100% na assinatura',
+    'parcelado':'Parcelado em 3× iguais',
+  };
+  let entrada=0, restante=total;
+  if(forma==='50_50')       { entrada=total*0.5;  restante=total*0.5; }
+  else if(forma==='30_70')  { entrada=total*0.3;  restante=total*0.7; }
+  else if(forma==='100_entrega') { entrada=0;     restante=total; }
+  else if(forma==='100_inicio')  { entrada=total; restante=0; }
+  else if(forma==='parcelado')   { entrada=total/3; restante=total*2/3; }
+  const entMin=orcVal('orc-entradaMin', 0);
+  if(entMin>entrada){ entrada=entMin; restante=total-entrada; }
 
-  return {areaEquiv,detalhes,valorBase,complexPct,complexVal,margemVal,margem,custos,impostoVal,impostoPct,impostoAtivo,total,totalHoras,remHora,custoHora,entrada,restante};
+  return {
+    areaEquiv, detalhes,
+    valorBase, complexPct, complexVal,
+    valorComComplex, margemPct, margemVal, valorComMargem,
+    custos, impostoAtivo, impostoPct, impostoVal,
+    total, custoHora, totalHoras, remHora,
+    entrada, restante, formaLabel:formaLabels[forma]||forma,
+  };
 }
 
 function orcAtualizarResultado(){
   const c=orcCalc();
-  // Atualiza display complexidade
-  const complexTotalEl=document.getElementById('orc-complexTotal');
-  if(complexTotalEl){
-    complexTotalEl.textContent=c.complexPct>0
+
+  // Atualiza total complexidade
+  const ctEl=document.getElementById('orc-complexTotal');
+  if(ctEl){
+    ctEl.textContent=c.complexPct>0
       ?`+ ${Math.round(c.complexPct*100)}% = ${orcFmt(c.complexVal)}`
       :'+ 0% (sem acréscimos)';
-    complexTotalEl.style.color=c.complexPct>0?'var(--accent)':'var(--muted)';
+    ctEl.style.color=c.complexPct>0?'var(--accent)':'var(--muted)';
   }
+
   const el=id=>document.getElementById(id);
   if(!el('orc-res-total')) return;
+
   el('orc-res-total').textContent=orcFmt(c.total);
-  el('orc-res-porm2').textContent=c.areaEquiv>0?`${orcFmt(c.total/c.areaEquiv)}/m²`:'—';
+  el('orc-res-porm2').textContent=c.areaEquiv>0
+    ?`${orcFmt(c.total/c.areaEquiv)}/m² equivalente`:'—';
   el('orc-res-areaEquiv').textContent=orcFmtM2(c.areaEquiv);
   el('orc-res-base').textContent=orcFmt(c.valorBase);
 
-  // Linha complexidade
+  // Linha complexidade (condicional)
   const cRow=el('orc-res-complex-row');
-  if(cRow){cRow.style.display=c.complexPct>0?'flex':'none';
-    cRow.innerHTML=`<span style="color:var(--muted2)">Complexidade (${Math.round(c.complexPct*100)}%)</span><span style="font-family:'DM Mono',monospace;color:var(--accent)">+ ${orcFmt(c.complexVal)}</span>`;}
-  el('orc-res-margem').textContent=`+ ${orcFmt(c.margemVal)} (${Math.round(c.margem*100)}%)`;
+  if(cRow){
+    cRow.style.display=c.complexPct>0?'flex':'none';
+    cRow.innerHTML=`<span style="color:var(--muted2)">Complexidade (${Math.round(c.complexPct*100)}%)</span>
+      <span style="font-family:'DM Mono',monospace;color:var(--accent)">+ ${orcFmt(c.complexVal)}</span>`;
+  }
+
+  el('orc-res-margem').textContent=`+ ${orcFmt(c.margemVal)} (${Math.round(c.margemPct*100)}%)`;
   el('orc-res-custos').textContent=`+ ${orcFmt(c.custos)}`;
 
+  // Linha imposto (condicional)
   const iRow=el('orc-res-imposto-row');
-  if(iRow){iRow.style.display=c.impostoAtivo?'flex':'none';
-    iRow.innerHTML=`<span style="color:var(--muted2)">Impostos (${c.impostoPct}%)</span><span style="font-family:'DM Mono',monospace;color:var(--danger)">+ ${orcFmt(c.impostoVal)}</span>`;}
+  if(iRow){
+    iRow.style.display=c.impostoAtivo?'flex':'none';
+    iRow.innerHTML=`<span style="color:var(--muted2)">Impostos (${c.impostoPct}%)</span>
+      <span style="font-family:'DM Mono',monospace;color:var(--danger)">+ ${orcFmt(c.impostoVal)}</span>`;
+  }
 
+  // Verificação hora
   el('orc-res-horas').textContent=`${c.totalHoras}h`;
   el('orc-res-remhora').textContent=`${orcFmt(c.remHora)}/h`;
   el('orc-res-custo').textContent=`${orcFmt(c.custoHora)}/h`;
   const alerta=el('orc-res-alerta');
   if(alerta){
-    if(c.custoHora>0&&c.remHora<c.custoHora) alerta.innerHTML=`<div class="info-box" style="border-color:var(--danger);background:rgba(224,82,82,.07);margin-top:6px;font-size:11px">⚠ Remuneração/h abaixo do custo real.</div>`;
-    else if(c.custoHora>0&&c.remHora>=c.custoHora*1.5) alerta.innerHTML=`<div class="info-box" style="border-color:var(--success);background:rgba(62,207,142,.06);margin-top:6px;font-size:11px">✓ Margem saudável acima do custo real.</div>`;
+    if(c.custoHora>0 && c.remHora<c.custoHora)
+      alerta.innerHTML=`<div class="info-box" style="border-color:var(--danger);background:rgba(224,82,82,.07);margin-top:6px;font-size:11px">⚠ Remuneração/h (${orcFmt(c.remHora)}/h) abaixo do custo real (${orcFmt(c.custoHora)}/h).</div>`;
+    else if(c.custoHora>0 && c.remHora>=c.custoHora*1.5)
+      alerta.innerHTML=`<div class="info-box" style="border-color:var(--success);background:rgba(62,207,142,.06);margin-top:6px;font-size:11px">✓ Margem saudável — ${orcFmt(c.remHora)}/h vs custo ${orcFmt(c.custoHora)}/h.</div>`;
     else alerta.innerHTML='';
   }
+
+  // Pagamento
   el('orc-res-entrada').textContent=orcFmt(c.entrada);
   el('orc-res-restante').textContent=orcFmt(c.restante);
 }
@@ -3015,13 +3084,16 @@ function renderOrcamento(){
   orcRenderCustosExtras();
   setTimeout(()=>{
     orcAtualizarResultado();
-    // Listener global — qualquer input/change dentro da coluna do formulário atualiza o resultado
-    const col=document.querySelector('#mainContent > div > div:first-child');
-    if(col){
-      col.addEventListener('input', orcAtualizarResultado);
-      col.addEventListener('change', orcAtualizarResultado);
+    // Event delegation no mainContent — captura qualquer input/change mesmo após re-renders
+    const mc=document.getElementById('mainContent');
+    if(mc){
+      mc._orcHandler=e=>{
+        if(e.target.closest && e.target.closest('#mainContent')) orcAtualizarResultado();
+      };
+      mc.addEventListener('input', mc._orcHandler);
+      mc.addEventListener('change', mc._orcHandler);
     }
-  }, 80);
+  }, 100);
 }
 
 window.orcToggleTipo=()=>{
@@ -3072,7 +3144,7 @@ window.orcGerarPDF=async()=>{
       complexVal:c.complexVal,
       complexItens:orcComplexidade.filter(x=>x.qty>0).map(x=>({label:x.label,qty:x.qty,pct:Math.round(x.qty*x.pct*100)})),
       margemVal:c.margemVal,
-      margem:parseInt(document.getElementById('orc-margem')?.value||10),
+      margem:Math.round(c.margemPct*100),
       custos:c.custos,
       impostoVal:c.impostoVal,
       impostoPct:c.impostoPct,
